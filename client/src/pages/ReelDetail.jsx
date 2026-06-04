@@ -546,7 +546,7 @@ export default function ReelDetail() {
           
           {/* Title Area */}
           <div>
-            <h1 className="text-xl md:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+            <h1 className="text-3xl md:text-4xl font-heading font-normal italic tracking-tight text-neutral-900 dark:text-neutral-100 leading-tight">
               {metadata.title || "Untitled AI Import"}
             </h1>
             <p className="text-xs font-mono text-neutral-400 dark:text-neutral-500 mt-2">
