@@ -5,7 +5,15 @@ module.exports = {
     "./src/**/*.{js,jsx,ts,tsx}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        heading: ["'Instrument Serif'", "serif"],
+        body: ["Barlow", "sans-serif"],
+      },
+      borderRadius: {
+        DEFAULT: "9999px",
+      },
+    },
   },
   plugins: [],
 }
