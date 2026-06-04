@@ -139,6 +139,7 @@ secrets.json
 *.docx
 *.csv
 *.txt
+.vs
 .claude
 skills-lock.json
 single_json_with_cookies.json

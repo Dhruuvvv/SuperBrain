@@ -47,6 +47,37 @@ SOCIAL_DOMAINS = [
     "x.com", "tiktok.com", "youtube.com", "t.me"
 ]
 
+# === MODIFIED BY GROK ===
+import hashlib
+
+def get_cache_filepath(reel_id: str) -> str:
+    # Clean/hash reel_id to be a safe filename
+    hashed = hashlib.sha256(reel_id.encode('utf-8')).hexdigest()
+    os.makedirs("temp/cache", exist_ok=True)
+    return os.path.join("temp/cache", f"{hashed}.json")
+
+def get_cached_response(reel_id: str) -> dict | None:
+    filepath = get_cache_filepath(reel_id)
+    if os.path.exists(filepath):
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                logger.info(f"Cache HIT for reel_id: {reel_id} (hash: {os.path.basename(filepath)})")
+                return data
+        except Exception as e:
+            logger.warning(f"Failed to read cache for {reel_id}: {e}")
+    return None
+
+def save_cached_response(reel_id: str, data: dict):
+    filepath = get_cache_filepath(reel_id)
+    try:
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        logger.info(f"Cached response saved for reel_id: {reel_id} (hash: {os.path.basename(filepath)})")
+    except Exception as e:
+        logger.warning(f"Failed to save cache for {reel_id}: {e}")
+
+
 def is_valid_extracted_url(url: str) -> bool:
     url_lower = url.lower().strip()
     if not url_lower:
@@ -206,6 +237,173 @@ def seconds_to_srt_time(seconds: float) -> str:
     return f"{hours:02}:{minutes:02}:{secs:02},{millis:03}"
 
 
+def find_evidence_in_whisper_chunks(chunks: list, term: str, caption: str = "", ocr_text: str = "") -> dict:
+    term_lower = term.lower().strip()
+    if not term_lower:
+        return {"evidence_text": "", "timestamp_start": None, "timestamp_end": None, "is_transcript": False, "is_caption": False, "is_ocr": False}
+        
+    best_chunk = None
+    best_index = -1
+    
+    # 1. Check Whisper Chunks
+    if chunks:
+        # Exact substring search in chunks
+        for idx, chunk in enumerate(chunks):
+            chunk_text = chunk.get("text", "").lower()
+            if term_lower in chunk_text:
+                best_chunk = chunk
+                best_index = idx
+                break
+                
+        # Fuzzy word search in chunks if no exact substring
+        if not best_chunk:
+            from difflib import SequenceMatcher
+            max_ratio = 0.0
+            for idx, chunk in enumerate(chunks):
+                chunk_text = chunk.get("text", "").lower()
+                for w in chunk_text.split():
+                    w_clean = re.sub(r"[^\w]", "", w)
+                    if len(w_clean) >= 3:
+                        ratio = SequenceMatcher(None, term_lower, w_clean).ratio()
+                        if ratio > 0.82 and ratio > max_ratio:
+                            max_ratio = ratio
+                            best_chunk = chunk
+                            best_index = idx
+
+    if best_chunk:
+        ts = best_chunk.get("timestamp") or (0.0, 0.0)
+        start_sec = ts[0] if ts[0] is not None else 0.0
+        end_sec = ts[1] if ts[1] is not None else 0.0
+        start_srt = seconds_to_srt_time(start_sec)
+        end_srt = seconds_to_srt_time(end_sec)
+        
+        # Build context
+        context_parts = []
+        if best_index > 0:
+            context_parts.append(chunks[best_index - 1].get("text", "").strip())
+        context_parts.append(best_chunk.get("text", "").strip())
+        if best_index < len(chunks) - 1:
+            context_parts.append(chunks[best_index + 1].get("text", "").strip())
+            
+        return {
+            "evidence_text": " ".join(context_parts),
+            "timestamp_start": start_srt,
+            "timestamp_end": end_srt,
+            "is_transcript": True,
+            "is_caption": False,
+            "is_ocr": False
+        }
+
+    # 2. Check Caption
+    if caption:
+        caption_lower = caption.lower()
+        if term_lower in caption_lower:
+            for line in caption.split("\n"):
+                if term_lower in line.lower():
+                    return {
+                        "evidence_text": f"Caption: {line.strip()}",
+                        "timestamp_start": None,
+                        "timestamp_end": None,
+                        "is_transcript": False,
+                        "is_caption": True,
+                        "is_ocr": False
+                    }
+
+    # 3. Check OCR / Visual Text Content
+    if ocr_text:
+        ocr_lower = ocr_text.lower()
+        if term_lower in ocr_lower:
+            for line in ocr_text.split("\n"):
+                if term_lower in line.lower():
+                    return {
+                        "evidence_text": f"Visual Text: {line.strip()}",
+                        "timestamp_start": None,
+                        "timestamp_end": None,
+                        "is_transcript": False,
+                        "is_caption": False,
+                        "is_ocr": True
+                    }
+
+    return {
+        "evidence_text": "",
+        "timestamp_start": None,
+        "timestamp_end": None,
+        "is_transcript": False,
+        "is_caption": False,
+        "is_ocr": False
+    }
+
+
+def check_resource_hallucination(name: str, url: str, transcript: str, caption: str, ocr: str, raw_urls: list, raw_repos: list) -> tuple[bool, str]:
+    raw_text = " ".join(filter(None, [transcript, caption, ocr])).lower()
+    name_lower = name.lower().strip()
+    
+    if not name_lower:
+        return False, ""
+        
+    has_name_mention = False
+    if name_lower in raw_text:
+        has_name_mention = True
+    else:
+        from difflib import SequenceMatcher
+        # Check if the name matches any word fuzzymatching
+        for w in raw_text.split():
+            w_clean = re.sub(r"[^\w]", "", w)
+            if len(w_clean) >= 4:
+                if SequenceMatcher(None, name_lower, w_clean).ratio() > 0.8:
+                    has_name_mention = True
+                    break
+
+    if not has_name_mention:
+        return True, "Resource name not found in transcript, caption, or visual text (Resource substitution or AI hallucination)."
+
+    if url:
+        url_lower = url.lower().strip()
+        all_raw = [r.lower().strip() for r in raw_urls + raw_repos if r]
+        
+        # Exact match is valid
+        if any(url_lower in r for r in all_raw):
+            return False, ""
+            
+        # Check for URL path modification
+        from difflib import SequenceMatcher
+        for raw in all_raw:
+            parsed_raw = urlparse(raw)
+            parsed_ai = urlparse(url_lower)
+            if parsed_raw.netloc == parsed_ai.netloc and parsed_raw.netloc:
+                path_raw = parsed_raw.path.strip("/")
+                path_ai = parsed_ai.path.strip("/")
+                if path_raw and path_ai and path_raw != path_ai:
+                    if SequenceMatcher(None, path_raw, path_ai).ratio() >= 0.75:
+                        return True, f"URL path modification detected: '{url}' looks like a hallucinated copy of '{raw}'."
+
+        return True, "URL was generated by AI but not found in the raw inputs."
+
+    return False, ""
+
+
+def calculate_confidence(hallucination_flag: bool, is_regex: bool, is_transcript: bool, is_ocr: bool, is_caption: bool, has_evidence: bool) -> float:
+    if hallucination_flag:
+        return 15.0
+        
+    score = 50.0
+    if is_regex:
+        score = 95.0
+    elif is_ocr and is_transcript:
+        score = 92.0
+    elif is_transcript:
+        score = 85.0
+    elif is_ocr:
+        score = 80.0
+    elif is_caption:
+        score = 75.0
+        
+    if has_evidence:
+        score += 5.0
+        
+    return min(100.0, score)
+
+
 def convert_to_srt(chunks: list) -> str:
     """Converts Whisper chunks to SRT string"""
     srt_lines = []
@@ -222,9 +420,51 @@ def convert_to_srt(chunks: list) -> str:
 
 
 def run_whisper(audio_path: str):
-    """Synchronous function to run whisper pipeline."""
+    """Run Whisper transcription. Tries Groq API first for speed, falls back to local pipeline on failure."""
+    if groq_client and os.path.exists(audio_path):
+        try:
+            logger.info(f"Attempting fast Groq Whisper transcription for: {audio_path}")
+            with open(audio_path, "rb") as f:
+                response = groq_client.audio.transcriptions.create(
+                    file=(os.path.basename(audio_path), f.read()),
+                    model="whisper-large-v3",
+                    response_format="verbose_json"
+                )
+            
+            # Map verbose_json to the pipeline's structure
+            chunks = []
+            segments = getattr(response, "segments", []) or response.get("segments", [])
+            for seg in segments:
+                if hasattr(seg, "get"):
+                    start = seg.get("start", 0.0)
+                    end = seg.get("end", 0.0)
+                    text = seg.get("text", "")
+                else:
+                    start = getattr(seg, "start", 0.0)
+                    end = getattr(seg, "end", 0.0)
+                    text = getattr(seg, "text", "")
+                chunks.append({
+                    "timestamp": (start, end),
+                    "text": text
+                })
+            
+            full_text = getattr(response, "text", "") or response.get("text", "")
+            logger.info(f"Groq Whisper transcription successful (Word count: {len(full_text.split())})")
+            return {
+                "text": full_text,
+                "chunks": chunks
+            }
+        except Exception as e:
+            logger.warning(f"Groq Whisper transcription failed, falling back to local: {e}")
+
+    # Fallback to local pipeline
+    if not pipe:
+        logger.error("Local Whisper model is not loaded and Groq transcription was not successful.")
+        raise RuntimeError("ASR transcription unavailable: local model not loaded and Groq failed.")
+
+    logger.info(f"Running local Whisper transcription for: {audio_path}")
     result = pipe(
-        audio_path, return_timestamps=True, chunk_length_s=30, ignore_warning=True
+        audio_path, return_timestamps=True, chunk_length_s=30, ignore_warning=True, batch_size=8
     )
     return result
 
@@ -361,11 +601,18 @@ def parse_gemini_response(response_text: str) -> dict:
                 for line in repos_raw.split("\n"):
                     line = line.strip().strip("-•*").strip()
                     if line and len(line) > 4:
-                        if "github.com/" in line.lower() or "gitlab.com/" in line.lower():
+                        lower_line = line.lower()
+                        if "github.com/" in lower_line or "gitlab.com/" in lower_line:
                             if not line.startswith("http"):
                                 line = "https://" + line
                             if line not in result["repositories_found"]:
                                 result["repositories_found"].append(line)
+                        elif "/" in line and not line.startswith("http") and " " not in line:
+                            parts_slash = [p for p in line.split("/") if p]
+                            if len(parts_slash) >= 2 and all(re.match(r"^[a-zA-Z0-9_.-]+$", p) for p in parts_slash[:2]):
+                                repo_url = f"https://github.com/{parts_slash[0]}/{parts_slash[1]}"
+                                if repo_url not in result["repositories_found"]:
+                                    result["repositories_found"].append(repo_url)
                                 
         # 3. Extract Visible Products Or Websites (Name | Confidence | Reason)
         # Fallback to POSSIBLE_WEBSITES_OR_TOOLS or MENTIONED_BRANDS if VISIBLE_PRODUCTS_OR_WEBSITES is missing
@@ -537,9 +784,11 @@ Analyze ALL these video frames carefully in sequence. These are from an Instagra
 Perform a production-grade visual product intelligence assessment.
 
 TASK 1 — URL DETECTION (High Confidence):
+- Pay extremely close attention to the bottom/top overlay text, watermarks, browser URL address bars, code file contents showing URLs, or any embedded QR codes/links.
 - Extract EXACTLY and ONLY real website URLs or domains physically visible on the screen.
-- Look at browser address bars, overlay text links, watermarks, etc.
-- Do NOT fabricate or infer URLs. If it's not on screen, do NOT list it.
+- Do NOT complete, infer, guess, or hallucinate URLs. If a URL/domain name is not physically visible on the screen, do NOT list it.
+- Never guess a TLD (like .com, .io, .dev) if it's not visible.
+- If you see a brand name or keyword but no actual URL, do NOT list it here (list it under VISIBLE_PRODUCTS_OR_WEBSITES instead).
 - Format: one URL/domain per line. If none are physically visible, write "none".
 
 TASK 2 — REPOSITORIES DETECTION:
@@ -610,17 +859,23 @@ async def lifespan(app: FastAPI):
         logger.info(f"🖥️ Target Device: {device_name}")
 
         # 2. Load Whisper (ASR)
-        logger.info(
-            "⏳ Loading Whisper Model (Oriserve/Whisper-Hindi2Hinglish-Prime)..."
-        )
-        pipe = pipeline(
-            "automatic-speech-recognition",
-            model="Oriserve/Whisper-Hindi2Hinglish-Prime",
-            device=device,
-            torch_dtype=torch.float16 if device == 0 else torch.float32,
-            model_kwargs={"low_cpu_mem_usage": True},
-        )
-        logger.info("✅ Whisper Model Loaded")
+        try:
+            logger.info(
+                "⏳ Loading Whisper Model (Oriserve/Whisper-Hindi2Hinglish-Prime)..."
+            )
+            pipe = pipeline(
+                "automatic-speech-recognition",
+                model="Oriserve/Whisper-Hindi2Hinglish-Prime",
+                device=device,
+                torch_dtype=torch.float16 if device == 0 else torch.float32,
+                model_kwargs={"low_cpu_mem_usage": True},
+            )
+            logger.info("✅ Whisper Model Loaded")
+        except Exception as whisper_err:
+            logger.warning(
+                f"⚠️ Could not load local Whisper model ({whisper_err}). "
+                "The server will rely on Groq Whisper API for transcription."
+            )
 
         # 3. Load Sentence Transformer (Embeddings)
         logger.info("⏳ Loading Sentence Transformer (all-MiniLM-L6-v2)...")
@@ -676,6 +931,33 @@ class AnalyzeRequest(BaseModel):
     video_path: str = ""
     # Image mode fields
     image_paths: list = []
+    bypass_cache: bool = False
+
+
+class EmbedRequest(BaseModel):
+    text: str
+
+
+class ChatContextItem(BaseModel):
+    title: str = ""
+    summary: str = ""
+    instagram_url: str = ""
+    author_username: str = ""
+    plain_text: str = ""
+    how_to_guide: dict = None
+
+
+class ChatRequest(BaseModel):
+    query: str
+    context: list[ChatContextItem]
+
+
+class MindMapRequest(BaseModel):
+    title: str
+    summary: str
+    key_takeaways: list[str] = []
+    plain_text: str = ""
+    detail_level: str = "moderate"
 
 
 # ---------------------------------------------------------
@@ -688,7 +970,7 @@ async def transcribe(req: TranscribeRequest):
 
     # Run heavy computation in a thread pool to avoid blocking the event loop
     result = await loop.run_in_executor(
-        None, partial(pipe, req.audio_path, return_timestamps=True, chunk_length_s=30)
+        None, run_whisper, req.audio_path
     )
 
     srt = convert_to_srt(result["chunks"])
@@ -722,9 +1004,11 @@ Analyze this Instagram photo post carefully.
 Perform a production-grade visual product intelligence assessment.
 
 TASK 1 — URL DETECTION (High Confidence):
+- Pay extremely close attention to the bottom/top overlay text, watermarks, browser URL address bars, code file contents showing URLs, or any embedded QR codes/links.
 - Extract EXACTLY and ONLY real website URLs or domains physically visible on the screen.
-- Look at browser address bars, overlay text links, watermarks, etc.
-- Do NOT fabricate or infer URLs. If it's not on screen, do NOT list it.
+- Do NOT complete, infer, guess, or hallucinate URLs. If a URL/domain name is not physically visible on the screen, do NOT list it.
+- Never guess a TLD (like .com, .io, .dev) if it's not visible.
+- If you see a brand name or keyword but no actual URL, do NOT list it here (list it under VISIBLE_PRODUCTS_OR_WEBSITES instead).
 - Format: one URL/domain per line. If none are physically visible, write "none".
 
 TASK 2 — REPOSITORIES DETECTION:
@@ -826,9 +1110,11 @@ Analyze ALL slides carefully.
 Perform a production-grade visual product intelligence assessment.
 
 TASK 1 — URL DETECTION (High Confidence):
+- Pay extremely close attention to the bottom/top overlay text, watermarks, browser URL address bars, code file contents showing URLs, or any embedded QR codes/links.
 - Extract EXACTLY and ONLY real website URLs or domains physically visible on the screen.
-- Look at browser address bars, overlay text links, watermarks, etc.
-- Do NOT fabricate or infer URLs. If it's not on screen, do NOT list it.
+- Do NOT complete, infer, guess, or hallucinate URLs. If a URL/domain name is not physically visible on the screen, do NOT list it.
+- Never guess a TLD (like .com, .io, .dev) if it's not visible.
+- If you see a brand name or keyword but no actual URL, do NOT list it here (list it under VISIBLE_PRODUCTS_OR_WEBSITES instead).
 - Format: one URL/domain per line. If none are physically visible, write "none".
 
 TASK 2 — REPOSITORIES DETECTION:
@@ -896,11 +1182,18 @@ VISUAL_DESCRIPTION:
 async def analyze_reel(req: AnalyzeRequest):
     """
     Complete AI Pipeline:
-    1. Validation
-    2. Transcription & Visual Analysis (Parallel Non-blocking)
-    3. LLM Metadata Extraction (With timeout)
-    4. Vector Embeddings (Non-blocking)
+    1. Caching Check
+    2. Validation
+    3. Transcription & Visual Analysis (Parallel Non-blocking)
+    4. LLM Metadata Extraction (With timeout)
+    5. Vector Embeddings (Non-blocking)
     """
+    # Check cache first using reel_id hash unless bypassed
+    if not req.bypass_cache:
+        cached_res = get_cached_response(req.reel_id)
+        if cached_res is not None:
+            return cached_res
+
     import time
     pipeline_start = time.time()
     groq_error = None
@@ -927,6 +1220,7 @@ async def analyze_reel(req: AnalyzeRequest):
     gemini_text_content = ""
     plain_text = ""
     srt = ""
+    whisper_result = {"text": "", "chunks": []}
 
     if req.content_mode == "single_image":
         # --- Single Photo Post ---
@@ -1034,11 +1328,12 @@ async def analyze_reel(req: AnalyzeRequest):
             logger.info(f"[{req.reel_id}] Ignoring generic tech term '{name}' from Serper search.")
             continue
             
-        # Confidence threshold: Must be >= 0.8 to query Serper
-        if confidence >= 0.8:
+        # Confidence threshold: Must be >= 0.75 to query Serper
+        if confidence >= 0.75:
             brands_to_resolve.append(name)
+            logger.info(f"[{req.reel_id}] Brand '{name}' confidence {confidence} is >= 0.75. Adding to Serper search list.")
         else:
-            logger.info(f"[{req.reel_id}] Product '{name}' confidence {confidence} is below threshold 0.8. Skipping Serper.")
+            logger.info(f"[{req.reel_id}] Product '{name}' confidence {confidence} is below threshold 0.75. Skipping Serper.")
             
     if brands_to_resolve:
         logger.info(f"[{req.reel_id}] Resolving {len(brands_to_resolve)} brand name URLs via Serper...")
@@ -1145,16 +1440,15 @@ async def analyze_reel(req: AnalyzeRequest):
        - Each takeaway = one specific, actionable insight the user can act on
        - Maximum 8 takeaways. Each one must be genuinely useful, not filler.
 
-    2. EXTRACTED_URLS — HIGH-VALUE & INTELLIGENT RESOLUTION:
-       - Only return URLs that provide real value to the user (tools, resources, repos, templates, products, documentation).
-       - Do NOT return social media follow requests like "follow @syntaix.ai", links to personal social media profile pages, or "link in bio" placeholders. If unsure about usefulness, exclude the URL.
-       - Use the URLs provided in "Serper Resolved Brand URLs" as the ground truth for brand names listed in "Visually Detected Brand/Tool Names".
-       - Never guess or hallucinate full URLs if they are not provided in the inputs or "Serper Resolved Brand URLs".
-       - If nothing found, return empty array [].
+    2. EXTRACTED_URLS — HIGH-VALUE & STRICT DETERMINISTIC RESOLUTION:
+       - ONLY return URLs that are explicitly provided in the input lists above ("Caption URLs", "Visually Detected URLs", "Visually Detected Repositories", or "Serper Resolved Brand/Website URLs").
+       - Never guess, extrapolate, construct, or hallucinate a URL for a tool name, brand name, or project if it is not present in those lists.
+       - Do NOT return social media follow requests like "follow @syntaix.ai", links to personal social media profile pages, or "link in bio" placeholders. If a URL is for a social media platform (like instagram.com, facebook.com, twitter.com, x.com, tiktok.com, youtube.com, etc.) and is NOT a high-value resource/tool, exclude it.
+       - If no valid, explicitly provided URLs are in the inputs, return an empty array [].
+       - Double-check your list of "extracted_urls": if any URL in your list is not present in one of the input lists, remove it.
 
     3. CONTENT TYPE — be specific. Use: Tutorial | Recipe | Finance | Tech | Motivation | 
        Fitness | Art | Comedy | News | Review | Lifestyle | Education | other
-
     4. LANGUAGE — if mixed Hindi+English, return "hinglish". If silent, return "silent".
 
     Generate ONLY a strict JSON object with no extra text or markdown:
@@ -1170,19 +1464,27 @@ async def analyze_reel(req: AnalyzeRequest):
       "content_type": "Tutorial | Recipe | Finance | Tech | etc.",
       "mentioned_tools_or_websites": ["Tool or website NAMES only — no URLs here"],
       "telegram_bots_mentioned": ["Name of telegram bot 1", "Name of bot 2 — only if Telegram bots are explicitly mentioned, e.g. 'Multi Saver Bot', else empty array"],
-      "extracted_urls": ["https://actual-url.com", "only real URLs — no fabrication"],
-      "language_detected": "en | hi | gu | hinglish | silent"
+      "extracted_urls": ["https://actual-url.com", "only real, explicitly provided URLs — no fabrication/guesses"],
+      "language_detected": "en | hi | gu | hinglish | silent",
+      "resources": [
+        {{
+          "resource_name": "Resource Name (e.g. Supabase, Retool, Cursor)",
+          "resource_type": "Website | GitHub Repository | Documentation | YouTube Channel | API | MCP Server | AI Tool | Library | Database | Course | Book | Research Paper",
+          "resource_url": "Direct URL ONLY if explicitly provided in the input, otherwise null",
+          "description": "Brief description of the resource and its role in the reel"
+        }}
+      ]
     }}
     """
 
     try:
-        # Groq call with timeout to prevent hanging
         chat_completion = await loop.run_in_executor(
             None,
             partial(
                 groq_client.chat.completions.create,
                 messages=[{"role": "user", "content": prompt}],
                 model="llama-3.3-70b-versatile",
+                temperature=0.0,
                 response_format={"type": "json_object"},
                 timeout=25.0,  # 25 second timeout
             ),
@@ -1223,6 +1525,11 @@ async def analyze_reel(req: AnalyzeRequest):
         for res_url in resolved_brand_urls:
             if res_url not in extracted_urls:
                 extracted_urls.append(res_url)
+
+        # Merge visually detected repositories as a failsafe
+        for repo_url in repositories_found:
+            if repo_url not in extracted_urls:
+                extracted_urls.append(repo_url)
 
         # Known platform URL patterns
         KNOWN_PLATFORMS = {
@@ -1352,6 +1659,7 @@ async def analyze_reel(req: AnalyzeRequest):
                     groq_client.chat.completions.create,
                     messages=[{"role": "user", "content": howto_prompt}],
                     model="llama-3.3-70b-versatile",
+                    temperature=0.0,
                     response_format={"type": "json_object"},
                     timeout=20.0,
                 ),
@@ -1378,9 +1686,126 @@ async def analyze_reel(req: AnalyzeRequest):
         logger.error(f"[{req.reel_id}] Embedding failed: {str(e)}")
         embedding = [0.0] * 384
 
+    # --- Step 6: Global Resource Extraction Framework Processing ---
+    resources_list = []
+    seen_urls = set()
+    seen_names = set()
+    
+    # Process AI-extracted resources
+    ai_resources = metadata.get("resources", [])
+    if isinstance(ai_resources, list):
+        for res in ai_resources:
+            if not isinstance(res, dict):
+                continue
+            name = res.get("resource_name", "").strip()
+            res_type = res.get("resource_type", "Website").strip()
+            url = res.get("resource_url")
+            if url:
+                url = url.strip()
+            
+            if not name:
+                continue
+                
+            # Find evidence
+            ev = find_evidence_in_whisper_chunks(
+                chunks=whisper_result.get("chunks", []) if isinstance(whisper_result, dict) else [],
+                term=name,
+                caption=req.caption,
+                ocr_text=visual_desc_clean
+            )
+            
+            # Check hallucination
+            is_hallucinated, explanation = check_resource_hallucination(
+                name=name,
+                url=url,
+                transcript=plain_text,
+                caption=req.caption,
+                ocr=visual_desc_clean,
+                raw_urls=metadata.get("extracted_urls", []),
+                raw_repos=repositories_found
+            )
+            
+            res_desc = res.get("description", "")
+            if is_hallucinated and explanation:
+                res_desc = f"{res_desc} (Warning: {explanation})".strip()
+                
+            # Confidence score
+            confidence = calculate_confidence(
+                hallucination_flag=is_hallucinated,
+                is_regex=False,
+                is_transcript=ev.get("is_transcript", False),
+                is_ocr=ev.get("is_ocr", False),
+                is_caption=ev.get("is_caption", False),
+                has_evidence=bool(ev.get("evidence_text"))
+            )
+            
+            resource_obj = {
+                "resource_name": name,
+                "resource_type": res_type,
+                "resource_url": url,
+                "description": res_desc,
+                "confidence": confidence,
+                "verification_status": "pending_verification",
+                "hallucination_flag": is_hallucinated,
+                "evidence_text": ev.get("evidence_text", ""),
+                "timestamp_start": ev.get("timestamp_start"),
+                "timestamp_end": ev.get("timestamp_end")
+            }
+            resources_list.append(resource_obj)
+            if url:
+                seen_urls.add(url.lower())
+            seen_names.add(name.lower())
+
+    # Inject deterministically extracted URLs
+    for url in metadata.get("extracted_urls", []):
+        if url.lower() in seen_urls:
+            continue
+            
+        parsed = urlparse(url)
+        name = parsed.netloc.replace("www.", "") if parsed.netloc else url
+        res_type = "Website"
+        if "github.com" in url.lower():
+            res_type = "GitHub Repository"
+            parts = parsed.path.strip("/").split("/")
+            if len(parts) >= 2:
+                name = f"{parts[0]}/{parts[1]}"
+                
+        # Find evidence
+        ev = find_evidence_in_whisper_chunks(
+            chunks=whisper_result.get("chunks", []) if isinstance(whisper_result, dict) else [],
+            term=name,
+            caption=req.caption,
+            ocr_text=visual_desc_clean
+        )
+        
+        confidence = calculate_confidence(
+            hallucination_flag=False,
+            is_regex=True,
+            is_transcript=ev.get("is_transcript", False),
+            is_ocr=ev.get("is_ocr", False),
+            is_caption=ev.get("is_caption", False),
+            has_evidence=bool(ev.get("evidence_text"))
+        )
+        
+        resource_obj = {
+            "resource_name": name,
+            "resource_type": res_type,
+            "resource_url": url,
+            "description": f"Deterministically extracted resource.",
+            "confidence": confidence,
+            "verification_status": "pending_verification",
+            "hallucination_flag": False,
+            "evidence_text": ev.get("evidence_text", "") or f"Pattern match for {url}",
+            "timestamp_start": ev.get("timestamp_start"),
+            "timestamp_end": ev.get("timestamp_end")
+        }
+        resources_list.append(resource_obj)
+        seen_urls.add(url.lower())
+
     processing_time = round(time.time() - pipeline_start, 2)
     logger.info(f"[{req.reel_id}] Pipeline complete. Returning results.")
-    return {
+    
+    response_data = {
         "success": groq_error is None,
         "error": groq_error,
         "transcript": {"plain_text": plain_text, "srt": srt},
@@ -1394,7 +1819,184 @@ async def analyze_reel(req: AnalyzeRequest):
         "how_to_guide": how_to_guide,
         "embedding": embedding,
         "processing_time_seconds": processing_time,
+        "resources": resources_list
     }
+    
+    # Save result to cache
+    save_cached_response(req.reel_id, response_data)
+    
+    return response_data
+
+
+@app.post("/embed")
+async def embed_text(req: EmbedRequest):
+    """Generate 384-dimensional vector embedding for query text."""
+    if not embedder:
+        raise HTTPException(status_code=500, detail="Embedding model not loaded")
+    
+    loop = asyncio.get_event_loop()
+    try:
+        embedding_tensor = await loop.run_in_executor(
+            None, partial(embedder.encode, req.text)
+        )
+        return {"embedding": embedding_tensor.tolist()}
+    except Exception as e:
+        logger.error(f"Embedding query failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/chat")
+async def chat_with_context(req: ChatRequest):
+    """Answer user query using retrieved RAG context via Groq LLM."""
+    if not groq_client:
+        raise HTTPException(status_code=500, detail="Groq client not initialized")
+
+    # Build prompt context
+    context_str = ""
+    for idx, item in enumerate(req.context):
+        context_str += f"=== Save [{idx + 1}] ===\n"
+        context_str += f"Title: {item.title}\n"
+        context_str += f"Author: @{item.author_username}\n"
+        context_str += f"URL: {item.instagram_url}\n"
+        context_str += f"Summary: {item.summary}\n"
+        if item.how_to_guide:
+            title = item.how_to_guide.get("how_to_title", "")
+            steps = item.how_to_guide.get("steps", [])
+            context_str += f"Guide Title: {title}\n"
+            context_str += "Steps:\n" + "\n".join(f"- {s}" for s in steps) + "\n"
+        if item.plain_text:
+            context_str += f"Transcript Snippet: {item.plain_text[:800]}...\n"
+        context_str += "\n"
+
+    system_prompt = (
+        "You are SuperBrain, a visual product intelligence AI assistant. "
+        "Your task is to answer the user's questions about their bookmarked Instagram reels, posts, and carousels. "
+        "Use the provided context containing titles, summaries, guides, and transcripts of their saved posts.\n\n"
+        "Guidelines:\n"
+        "1. Answer using ONLY facts from the provided context. If the answer is not in the context, say so.\n"
+        "2. Be concise, technical, and direct.\n"
+        "3. If referencing a saved post, cite it by mentioning the Title and the exact URL so the user can open it.\n"
+        "4. Output in clean Markdown formatting."
+    )
+
+    user_content = f"Context of my saved posts:\n{context_str}\nUser Question: {req.query}"
+
+    loop = asyncio.get_event_loop()
+    try:
+        completion = await loop.run_in_executor(
+            None,
+            partial(
+                groq_client.chat.completions.create,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ],
+                model="llama-3.3-70b-versatile",
+                temperature=0.2,
+                max_tokens=1000
+            )
+        )
+        answer = completion.choices[0].message.content
+        return {"answer": answer}
+    except Exception as e:
+        logger.error(f"Groq chat completion failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/mindmap")
+async def generate_mind_map(req: MindMapRequest):
+    """Generate structured mind-map hierarchy using Groq Llama 3.3."""
+    if not groq_client:
+        raise HTTPException(status_code=500, detail="Groq client not initialized")
+
+    detail_instruction = ""
+    if req.detail_level == "concise":
+        detail_instruction = (
+            "CRITICAL FORMAT RULES - DETAIL LEVEL: CONCISE\n"
+            "- You MUST create a high-level, extremely clean and minimal mind map.\n"
+            "- Limit the number of major branches in your JSON 'branches' array to EXACTLY 2 or 3.\n"
+            "- Limit each branch's 'points' array to EXACTLY 1 or 2 high-level takeaway points.\n"
+            "- Focus ONLY on the absolute core message and skip all sub-details, examples, or incidental facts."
+        )
+    elif req.detail_level == "detailed":
+        detail_instruction = (
+            "CRITICAL FORMAT RULES - DETAIL LEVEL: DETAILED\n"
+            "- You MUST create a deep, comprehensive, and highly granular mind map.\n"
+            "- Extract at least 5 or 6 distinct major branches from the transcript.\n"
+            "- Include 4 to 6 detailed, informative points under each branch.\n"
+            "- Actively dig deep into the provided text/transcript to extract specific tools, commands, step-by-step procedures, libraries, tips, websites, and concrete examples. Make sure every branch is packed with information."
+        )
+    else:
+        # moderate
+        detail_instruction = (
+            "CRITICAL FORMAT RULES - DETAIL LEVEL: MODERATE\n"
+            "- You MUST create a balanced, standard mind map.\n"
+            "- Limit the major branches to EXACTLY 3 or 4.\n"
+            "- Limit each branch's points to EXACTLY 2 or 3 points.\n"
+            "- Balance high-level conceptual takeaways with primary action points."
+        )
+
+    system_prompt = (
+        "You are an expert concepts extraction and visualization AI.\n"
+        "Your task is to analyze the provided title, summary, key takeaways, and transcript of a video curation, "
+        "and organize them into a clean, hierarchical mind map structure.\n\n"
+        f"{detail_instruction}\n\n"
+        "Instructions:\n"
+        "1. Create a logical hierarchy representing the central topic and its core supporting concepts.\n"
+        "2. The central topic is the mind map's title (keep it concise, e.g. 3-8 words).\n"
+        "3. Output ONLY a valid JSON object matching the schema below. Do not wrap in markdown tags or add extra conversational text.\n\n"
+        "JSON Schema:\n"
+        "{\n"
+        "  \"title\": \"string (Central topic title)\",\n"
+        "  \"branches\": [\n"
+        "    {\n"
+        "      \"name\": \"string (Branch title, max 5 words)\",\n"
+        "      \"points\": [\n"
+        "        \"string (Key takeaway/details, max 15 words)\"\n"
+        "      ]\n"
+        "    }\n"
+        "  ]\n"
+        "}"
+    )
+
+    takeaways_str = "\n".join(f"- {t}" for t in req.key_takeaways)
+    user_content = (
+        f"Title: {req.title}\n"
+        f"Summary: {req.summary}\n"
+        f"Key Takeaways:\n{takeaways_str}\n"
+        f"Full Transcript:\n{req.plain_text}"
+    )
+
+    # Dynamic temperature based on detail level to balance structure vs detail extraction
+    temp = 0.3
+    if req.detail_level == "detailed":
+        temp = 0.75
+    elif req.detail_level == "moderate":
+        temp = 0.5
+
+    logger.info(f"Generating mindmap with detail_level={req.detail_level}, temp={temp}")
+
+    loop = asyncio.get_event_loop()
+    try:
+        completion = await loop.run_in_executor(
+            None,
+            partial(
+                groq_client.chat.completions.create,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ],
+                model="llama-3.3-70b-versatile",
+                temperature=temp,
+                response_format={"type": "json_object"},
+                max_tokens=1500
+            )
+        )
+        mind_map = json.loads(completion.choices[0].message.content)
+        return mind_map
+    except Exception as e:
+        logger.error(f"Groq mindmap generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

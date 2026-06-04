@@ -9,6 +9,7 @@ const util = require("util");
 const { createClient } = require("@supabase/supabase-js");
 
 const execPromise = util.promisify(exec);
+const { verifyReelResources } = require("./verification_worker");
 
 const app = express();
 app.use(cors());
@@ -466,6 +467,48 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
         });
         if (metaErr) throw metaErr;
 
+        // 6. Save resources to resources table
+        const resources = aiResponse && aiResponse.data ? aiResponse.data.resources || [] : [];
+        if (resources.length > 0) {
+            try {
+                // Delete existing resources first to prevent duplicates upon re-analysis
+                await supabase
+                    .from("resources")
+                    .delete()
+                    .eq("reel_id", reelId);
+
+                const resourcesToInsert = resources.map(r => ({
+                    reel_id: reelId,
+                    resource_name: r.resource_name,
+                    resource_type: r.resource_type,
+                    resource_url: r.resource_url,
+                    confidence: r.confidence,
+                    verification_status: r.verification_status || 'pending_verification',
+                    hallucination_flag: r.hallucination_flag || false,
+                    evidence_text: r.evidence_text || null,
+                    timestamp_start: r.timestamp_start || null,
+                    timestamp_end: r.timestamp_end || null
+                }));
+
+                const { error: resErr } = await supabase
+                    .from("resources")
+                    .insert(resourcesToInsert);
+
+                if (resErr) {
+                    console.error(`[${reelId}] Warning: Failed to insert resources (table might not exist yet):`, resErr.message);
+                } else {
+                    console.log(`[${reelId}] Successfully saved ${resources.length} resources to DB`);
+                    
+                    // Trigger background verification worker asynchronously
+                    verifyReelResources(reelId).catch(err => {
+                        console.error(`[${reelId}] Error running verification worker in background:`, err);
+                    });
+                }
+            } catch (resCatchErr) {
+                console.error(`[${reelId}] Error processing resources:`, resCatchErr.message);
+            }
+        }
+
         // 7. Update reel status
         const { data: finalReel } = await supabase
             .from("reels")
@@ -525,8 +568,55 @@ app.get("/api/reels", authMiddleware, async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
+    const { search } = req.query;
 
     try {
+        if (search && search.trim()) {
+            console.log(`[Search] Semantic search query: "${search}"`);
+            
+            // 1. Get embedding from Python AI Server
+            const pythonUrl = process.env.PYTHON_SERVICE_URL || "http://localhost:8000";
+            const embedRes = await axios.post(`${pythonUrl}/embed`, { text: search.trim() });
+            const queryEmbedding = embedRes.data.embedding;
+
+            // 2. Perform Vector Similarity Search in Supabase via RPC
+            const { data: matchedReels, error: rpcErr } = await supabase.rpc("match_reels", {
+                query_embedding: queryEmbedding,
+                match_threshold: 0.3, // Higher threshold for stricter precision
+                match_count: limit,
+                filter_user_id: userId
+            });
+
+            if (rpcErr) throw rpcErr;
+
+            // Format to match standard reels return structure
+            const formattedData = (matchedReels || []).map((reel) => ({
+                id: reel.id,
+                user_id: userId,
+                instagram_url: reel.instagram_url,
+                author_username: reel.author_username,
+                created_at: reel.created_at,
+                analysis_status: reel.analysis_status || "completed",
+                thumbnail_url: reel.thumbnail_url,
+                reel_metadata: {
+                    title: reel.title,
+                    summary: reel.summary,
+                    tags: reel.tags || [],
+                    content_type: reel.content_type
+                }
+            }));
+
+            return res.json({
+                data: formattedData,
+                meta: {
+                    total: formattedData.length,
+                    page: 1,
+                    limit,
+                    totalPages: 1
+                }
+            });
+        }
+
         const { data, error, count } = await supabase
             .from("reels")
             .select(`
@@ -564,7 +654,8 @@ app.get("/api/reels/:id", authMiddleware, async (req, res) => {
             .select(`
                 *,
                 reel_metadata (*),
-                transcripts (*)
+                transcripts (*),
+                resources (*)
             `)
             .eq("id", id)
             .eq("user_id", userId) // Ensure the user owns this reel
@@ -579,6 +670,75 @@ app.get("/api/reels/:id", authMiddleware, async (req, res) => {
         return res.status(500).json({ error: "Failed to fetch reel", details: error.message });
     }
 });
+
+// POST /api/reels/:id/mindmap: Generate and save mind map for a reel
+app.post("/api/reels/:id/mindmap", authMiddleware, async (req, res) => {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const { detail_level } = req.body || {};
+
+    try {
+        // 1. Fetch reel metadata and transcripts
+        const { data: reel, error: reelErr } = await supabase
+            .from("reels")
+            .select(`
+                *,
+                reel_metadata (*),
+                transcripts (*)
+            `)
+            .eq("id", id)
+            .eq("user_id", userId)
+            .single();
+
+        if (reelErr || !reel) {
+            return res.status(404).json({ error: "Reel not found or unauthorized" });
+        }
+
+        const metadata = reel.reel_metadata;
+        if (!metadata) {
+            return res.status(400).json({ error: "Reel metadata is missing. Cannot generate mind map." });
+        }
+
+        // Check if mind map is already generated (and not requested to regenerate/change detail level)
+        if (metadata.mind_map && !detail_level) {
+            return res.json(metadata.mind_map);
+        }
+
+        // 2. Call Python AI Server /mindmap
+        const pythonUrl = process.env.PYTHON_SERVICE_URL || "http://localhost:8000";
+        const keyTakeaways = metadata.key_takeaways || [];
+        const plainText = reel.transcripts ? (reel.transcripts.plain_text || "") : "";
+
+        console.log(`[MindMap] Generating mind map for reel ${id} (detail_level: ${detail_level || "moderate"})...`);
+        const aiResponse = await axios.post(`${pythonUrl}/mindmap`, {
+            title: metadata.title || "Untitled Video",
+            summary: metadata.summary || "",
+            key_takeaways: keyTakeaways,
+            plain_text: plainText,
+            detail_level: detail_level || "moderate"
+        });
+
+        const mindMapData = aiResponse.data;
+
+        // 3. Save to Supabase
+        const { error: updateErr } = await supabase
+            .from("reel_metadata")
+            .update({ mind_map: mindMapData })
+            .eq("reel_id", id);
+
+        if (updateErr) throw updateErr;
+
+        return res.json(mindMapData);
+
+    } catch (error) {
+        console.error("[MindMap] Error generating mind map:", error.message);
+        return res.status(500).json({ 
+            error: "Failed to generate mind map", 
+            details: error.message 
+        });
+    }
+});
+
 
 // DELETE /api/reels/:id: Delete reel and cascade metadata/transcript
 app.delete("/api/reels/:id", authMiddleware, async (req, res) => {
@@ -614,6 +774,268 @@ app.delete("/api/reels/:id", authMiddleware, async (req, res) => {
         return res.json({ success: true, message: "Reel deleted successfully" });
     } catch (error) {
         return res.status(500).json({ error: "Failed to delete reel", details: error.message });
+    }
+});
+
+
+// POST /api/chat: Semantic Search and LLM Chat via RAG
+app.post("/api/chat", authMiddleware, async (req, res) => {
+    const { query } = req.body;
+    const userId = req.user.id;
+
+    if (!query || !query.trim()) {
+        return res.status(400).json({ error: "Query is required" });
+    }
+
+    try {
+        console.log(`[Chat] User ${userId} queried: "${query}"`);
+        
+        // 1. Get embedding from Python AI Server
+        const pythonUrl = process.env.PYTHON_SERVICE_URL || "http://localhost:8000";
+        const embedRes = await axios.post(`${pythonUrl}/embed`, { text: query });
+        const queryEmbedding = embedRes.data.embedding;
+
+        // 2. Perform Vector Cosine Similarity Search in Supabase via RPC
+        const { data: matchedReels, error: rpcErr } = await supabase.rpc("match_reels", {
+            query_embedding: queryEmbedding,
+            match_threshold: 0.3, // Stricter threshold to get highly relevant context
+            match_count: 4,
+            filter_user_id: userId
+        });
+
+        if (rpcErr) {
+            console.error("[Chat] Supabase RPC error:", rpcErr);
+            throw rpcErr;
+        }
+
+        console.log(`[Chat] Found ${matchedReels ? matchedReels.length : 0} matching reels.`);
+
+        if (!matchedReels || matchedReels.length === 0) {
+            const chatRes = await axios.post(`${pythonUrl}/chat`, {
+                query,
+                context: []
+            });
+            return res.json({
+                answer: chatRes.data.answer,
+                references: []
+            });
+        }
+
+        // 3. Format context items for the Python LLM prompt
+        const formattedContext = matchedReels.map((reel) => ({
+            title: reel.title || "Untitled Save",
+            summary: reel.summary || "",
+            instagram_url: reel.instagram_url || "",
+            author_username: reel.author_username || "unknown",
+            plain_text: reel.plain_text || "",
+            how_to_guide: reel.how_to_guide || null
+        }));
+
+        // 4. Send request to Python Chat endpoint
+        const chatRes = await axios.post(`${pythonUrl}/chat`, {
+            query,
+            context: formattedContext
+        });
+
+        // 5. Build references list for frontend citation cards
+        const references = matchedReels.map((reel) => ({
+            id: reel.id,
+            title: reel.title || "Untitled Save",
+            author_username: reel.author_username || "unknown",
+            instagram_url: reel.instagram_url,
+            similarity: reel.similarity
+        }));
+
+        return res.json({
+            answer: chatRes.data.answer,
+            references
+        });
+
+    } catch (error) {
+        console.error("[Chat] Error in semantic search / chat pipeline:", error.message);
+        return res.status(500).json({ error: "Chat service encountered an error", details: error.message });
+    }
+});
+
+
+// GET /api/collections: Get all collections for current user
+app.get("/api/collections", authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    try {
+        const { data, error } = await supabase
+            .from("collections")
+            .select(`
+                *,
+                reel_collections (reel_id)
+            `)
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false });
+
+        if (error) throw error;
+        return res.json(data);
+    } catch (error) {
+        return res.status(500).json({ error: "Failed to fetch collections", details: error.message });
+    }
+});
+
+
+// POST /api/collections: Create a new collection
+app.post("/api/collections", authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    const { name } = req.body;
+
+    if (!name || !name.trim()) {
+        return res.status(400).json({ error: "Collection name is required" });
+    }
+
+    try {
+        const { data, error } = await supabase
+            .from("collections")
+            .insert({ user_id: userId, name: name.trim() })
+            .select()
+            .single();
+
+        if (error) throw error;
+        return res.status(201).json(data);
+    } catch (error) {
+        return res.status(500).json({ error: "Failed to create collection", details: error.message });
+    }
+});
+
+
+// POST /api/collections/:id/reels: Add a reel to a collection
+app.post("/api/collections/:id/reels", authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    const collectionId = req.params.id;
+    const { reelId } = req.body;
+
+    if (!reelId) {
+        return res.status(400).json({ error: "Reel ID is required" });
+    }
+
+    try {
+        // Verify user owns this collection
+        const { data: col, error: colErr } = await supabase
+            .from("collections")
+            .select("id")
+            .eq("id", collectionId)
+            .eq("user_id", userId)
+            .single();
+
+        if (colErr || !col) {
+            return res.status(404).json({ error: "Collection not found or unauthorized" });
+        }
+
+        // Add join record
+        const { error: insertErr } = await supabase
+            .from("reel_collections")
+            .insert({ reel_id: reelId, collection_id: collectionId });
+
+        if (insertErr) {
+            if (insertErr.code === "23505") { // Unique key constraint (already added)
+                return res.json({ success: true, message: "Reel already exists in collection" });
+            }
+            throw insertErr;
+        }
+
+        return res.json({ success: true, message: "Reel added to collection successfully" });
+    } catch (error) {
+        return res.status(500).json({ error: "Failed to add reel to collection", details: error.message });
+    }
+});
+
+
+// DELETE /api/collections/:id/reels/:reelId: Remove a reel from a collection
+app.delete("/api/collections/:id/reels/:reelId", authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    const collectionId = req.params.id;
+    const { reelId } = req.params;
+
+    try {
+        // Verify user owns this collection
+        const { data: col, error: colErr } = await supabase
+            .from("collections")
+            .select("id")
+            .eq("id", collectionId)
+            .eq("user_id", userId)
+            .single();
+
+        if (colErr || !col) {
+            return res.status(404).json({ error: "Collection not found or unauthorized" });
+        }
+
+        // Delete join record
+        const { error: deleteErr } = await supabase
+            .from("reel_collections")
+            .delete()
+            .eq("reel_id", reelId)
+            .eq("collection_id", collectionId);
+
+        if (deleteErr) throw deleteErr;
+
+        return res.json({ success: true, message: "Reel removed from collection successfully" });
+    } catch (error) {
+        return res.status(500).json({ error: "Failed to remove reel from collection", details: error.message });
+    }
+});
+
+
+// DELETE /api/collections/:id: Delete an entire collection
+app.delete("/api/collections/:id", authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    const collectionId = req.params.id;
+
+    try {
+        const { error } = await supabase
+            .from("collections")
+            .delete()
+            .eq("id", collectionId)
+            .eq("user_id", userId);
+
+        if (error) throw error;
+        return res.json({ success: true, message: "Collection deleted successfully" });
+    } catch (error) {
+        return res.status(500).json({ error: "Failed to delete collection", details: error.message });
+    }
+});
+
+
+// PATCH /api/reels/:id/metadata: Update curation notes, tags, and key takeaways
+app.patch("/api/reels/:id/metadata", authMiddleware, async (req, res) => {
+    const userId = req.user.id;
+    const { id } = req.params;
+    const { tags, keyTakeaways, notes } = req.body;
+
+    try {
+        // Verify ownership first
+        const { data: reel, error: checkError } = await supabase
+            .from("reels")
+            .select("id")
+            .eq("id", id)
+            .eq("user_id", userId)
+            .single();
+
+        if (checkError || !reel) {
+            return res.status(404).json({ error: "Reel not found or unauthorized" });
+        }
+
+        // Prepare updates
+        const updates = {};
+        if (tags !== undefined) updates.tags = tags;
+        if (keyTakeaways !== undefined) updates.key_takeaways = keyTakeaways;
+        if (notes !== undefined) updates.notes = notes;
+
+        const { data, error } = await supabase
+            .from("reel_metadata")
+            .update(updates)
+            .eq("reel_id", id)
+            .select()
+            .single();
+
+        if (error) throw error;
+        return res.json(data);
+    } catch (error) {
+        return res.status(500).json({ error: "Failed to update metadata", details: error.message });
     }
 });
 

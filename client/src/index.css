@@ -15,3 +15,26 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+@media print {
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+  .no-print, header, nav, button, footer {
+    display: none !important;
+  }
+  .grid {
+    display: block !important;
+  }
+  section {
+    display: block !important;
+    width: 100% !important;
+    position: static !important;
+    margin-bottom: 2rem !important;
+  }
+  .bg-white, .dark\:bg-\[\#0c0c0c\], .dark\:bg-\[\#0d0d0d\] {
+    border: 1px solid #ccc !important;
+    page-break-inside: avoid !important;
+  }
+}
