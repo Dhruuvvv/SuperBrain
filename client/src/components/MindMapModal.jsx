@@ -147,6 +147,7 @@ export default function MindMapModal({ isOpen, onClose, reelId, reelData, onMind
   if (!isOpen) return null;
 
   const handleGenerate = async (detailLevel = "moderate") => {
+    const actualDetailLevel = (detailLevel && typeof detailLevel === "string") ? detailLevel : "moderate";
     setGenerating(true);
     setError(null);
     try {
@@ -155,7 +156,7 @@ export default function MindMapModal({ isOpen, onClose, reelId, reelData, onMind
       if (!token) throw new Error("No active session found.");
 
       const res = await axios.post(`http://localhost:5000/api/reels/${reelId}/mindmap`, {
-        detail_level: detailLevel
+        detail_level: actualDetailLevel
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -968,7 +969,7 @@ export default function MindMapModal({ isOpen, onClose, reelId, reelData, onMind
               <div className="max-w-md w-full bg-neutral-950 border border-neutral-800 p-8 rounded-[4px] shadow-xl">
                 <p className="text-rose-500 font-mono text-xs mb-4">Error: {error}</p>
                 <button
-                  onClick={handleGenerate}
+                  onClick={() => handleGenerate("moderate")}
                   className="text-xs font-mono bg-emerald-500 hover:bg-emerald-400 text-black px-4 py-2 rounded-[3px]"
                 >
                   Retry Generation
@@ -989,7 +990,7 @@ export default function MindMapModal({ isOpen, onClose, reelId, reelData, onMind
                   <p className={`text-xs ${ui.emptySub}`}>Transform this curated post's takeaways and concepts into an interactive, visual structured map.</p>
                 </div>
                 <button
-                  onClick={handleGenerate}
+                  onClick={() => handleGenerate("moderate")}
                   className="w-full text-xs font-mono font-semibold bg-emerald-500 hover:bg-emerald-400 text-black py-2.5 rounded-[3px] transition-colors"
                 >
                   Generate Mind Map Instantly
