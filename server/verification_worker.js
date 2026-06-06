@@ -45,7 +45,7 @@ async function verifyUrl(resourceUrl) {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"
             },
-            validateStatus: (status) => status < 400 // Accept any 2xx or 3xx status code
+            validateStatus: (status) => status < 400 || [401, 403, 405, 429].includes(status) // Accept auth/bot-block codes as verified hosts
         });
         
         return { ok: true, status: response.status };
@@ -126,6 +126,8 @@ async function verifyReelResources(reelId) {
         console.log(`[Verification Worker] Resource verification completed for reel ${reelId}`);
     } catch (err) {
         console.error(`[Verification Worker] Unexpected error in verification task:`, err);
+    } finally {
+        console.log(`---------------------------------------------------------------`);
     }
 }
 

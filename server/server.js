@@ -524,8 +524,6 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
         // Cleanup all temp files
         cleanupTempFiles(tempDir, reelId);
 
-        console.log(`---------------------------------------------------------------`);
-        
         // Return full result to frontend
         return res.json({
             reel: finalReel,

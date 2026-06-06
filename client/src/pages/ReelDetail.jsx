@@ -780,7 +780,7 @@ export default function ReelDetail() {
                               </p>
                             )}
 
-                            {res.evidence_text && (
+                            {res.evidence_text && !res.evidence_text.startsWith("Pattern match for") && (
                               <div className="mt-2 bg-neutral-100/30 dark:bg-neutral-900/30 p-2 rounded-[2px] border border-neutral-200/20 dark:border-neutral-800/25">
                                 <span className="text-[8px] font-mono text-neutral-400 dark:text-neutral-500 uppercase tracking-wider block">Evidence Context</span>
                                 <p className="text-[10px] text-neutral-605 dark:text-neutral-400 italic mt-0.5 leading-relaxed">
