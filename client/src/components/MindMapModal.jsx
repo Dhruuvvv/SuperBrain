@@ -336,9 +336,9 @@ export default function MindMapModal({ isOpen, onClose, reelId, reelData, onMind
     }
   };
 
-  const DX_BRANCH = 300;
-  const DX_LEAF = 320;
-  const VERTICAL_SPACING_LEAF = 95; // Increased from 75 to handle 13px font text without overlaps
+  const DX_BRANCH = 340;
+  const DX_LEAF = 360;
+  const VERTICAL_SPACING_LEAF = 90; // Balanced vertical spacing for wider boxes
 
   // Wrap text helper for SVG nodes
   const wrapText = (text, maxChars = 32) => {
@@ -586,7 +586,8 @@ export default function MindMapModal({ isOpen, onClose, reelId, reelData, onMind
               fontWeight: "600",
               textAnchor: "middle",
               pointerEvents: "none",
-              userSelect: "none"
+              userSelect: "none",
+              textRendering: "geometricPrecision"
             };
 
             // Accent bar on the side facing the center (x = 0)
@@ -634,8 +635,8 @@ export default function MindMapModal({ isOpen, onClose, reelId, reelData, onMind
             );
           } else {
             // Leaf points
-            const leafLines = wrapText(node.name, 30);
-            const width = 285;
+            const leafLines = wrapText(node.name, 48);
+            const width = 400;
             const height = Math.max(44, leafLines.length * 16 + 18);
             // Left branch leaf should expand to the left, Right branch leaf to the right.
             const rx = isLeft ? node.x - width : node.x;
@@ -651,13 +652,14 @@ export default function MindMapModal({ isOpen, onClose, reelId, reelData, onMind
             };
 
             const textStyle = {
-              fill: theme === "light" ? "#475569" : (theme === "neon" ? "#d4d4d4" : "#a3a3a3"),
-              fontFamily: "system-ui, -apple-system, sans-serif",
-              fontSize: "13px",
-              fontWeight: "450",
+              fill: theme === "light" ? "#0f172a" : (theme === "neon" ? "#ffffff" : "#e5e5e5"),
+              fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+              fontSize: "13.5px",
+              fontWeight: "400",
               textAnchor: "start",
               pointerEvents: "none",
-              userSelect: "none"
+              userSelect: "none",
+              textRendering: "geometricPrecision"
             };
 
             // Anchor dot & text alignment
@@ -764,7 +766,8 @@ export default function MindMapModal({ isOpen, onClose, reelId, reelData, onMind
                     letterSpacing: "0.06em",
                     textAnchor: "middle",
                     pointerEvents: "none",
-                    userSelect: "none"
+                    userSelect: "none",
+                    textRendering: "geometricPrecision"
                   }}
                 >
                   {rootLines.map((line, idx) => (

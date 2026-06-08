@@ -29,6 +29,7 @@ async def generate_mind_map(req: MindMapRequest, request: Request):
             "- You MUST create a deep, comprehensive, and highly granular mind map.\n"
             "- Extract at least 5 or 6 distinct major branches from the transcript.\n"
             "- Include 4 to 6 detailed, informative points under each branch.\n"
+            "- Each point MUST grow horizontally by providing a rich, descriptive explanation (15 to 30 words per point) detailing the syntax, command usages, mechanics, or reasons (e.g., instead of 'Use git init command', write 'Initialize a new local Git repository in the current folder using the git init command to start tracking source code changes').\n"
             "- Actively dig deep into the provided text/transcript to extract specific tools, commands, step-by-step procedures, libraries, tips, websites, and concrete examples. Make sure every branch is packed with information."
         )
     else:
@@ -38,6 +39,7 @@ async def generate_mind_map(req: MindMapRequest, request: Request):
             "- You MUST create a balanced, standard mind map.\n"
             "- Limit the major branches to EXACTLY 3 or 4.\n"
             "- Limit each branch's points to EXACTLY 2 or 3 points.\n"
+            "- Each point should be a moderately descriptive sentence (10 to 18 words) explaining the action and its consequence.\n"
             "- Balance high-level conceptual takeaways with primary action points."
         )
 
@@ -57,7 +59,7 @@ async def generate_mind_map(req: MindMapRequest, request: Request):
         "    {\n"
         "      \"name\": \"string (Branch title, max 5 words)\",\n"
         "      \"points\": [\n"
-        "        \"string (Key takeaway/details, max 15 words)\"\n"
+        "        \"string (Key takeaway/details and description as instructed above)\"\n"
         "      ]\n"
         "    }\n"
         "  ]\n"
