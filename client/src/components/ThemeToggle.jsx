@@ -10,40 +10,51 @@ export default function ThemeToggle() {
     setIsDark(isDarkTheme);
   }, []);
 
-  const toggleTheme = () => {
-    const root = window.document.documentElement;
-    if (isDark) {
-      root.classList.remove("dark");
-      root.style.backgroundColor = "#ffffff";
-      localStorage.setItem("theme", "light");
-      setIsDark(false);
+  const toggleTheme = (e) => {
+    const x = e?.clientX ?? window.innerWidth / 2;
+    const y = e?.clientY ?? window.innerHeight / 2;
+    document.documentElement.style.setProperty('--x', `${x}px`);
+    document.documentElement.style.setProperty('--y', `${y}px`);
+    const applyThemeChange = () => {
+      const root = window.document.documentElement;
+      if (isDark) {
+        root.classList.remove("dark");
+        root.style.backgroundColor = "#FAFAF8";
+        localStorage.setItem("theme", "light");
+        setIsDark(false);
+      } else {
+        root.classList.add("dark");
+        root.style.backgroundColor = "#0A0B0D";
+        localStorage.setItem("theme", "dark");
+        setIsDark(true);
+      }
+    };
+
+    if (document.startViewTransition) {
+      document.startViewTransition(applyThemeChange);
     } else {
-      root.classList.add("dark");
-      root.style.backgroundColor = "#0a0a0a";
-      localStorage.setItem("theme", "dark");
-      setIsDark(true);
+      applyThemeChange();
     }
   };
 
   return (
     <button
       onClick={toggleTheme}
-      className="group p-2 border border-neutral-200 dark:border-neutral-850 hover:border-neutral-300 dark:hover:border-neutral-700/80 rounded-[4px] bg-white dark:bg-neutral-950/40 hover:bg-neutral-50 dark:hover:bg-neutral-900/60 shadow-xs transition-all duration-300 flex items-center justify-center"
+      className="group relative w-10 h-10 rounded-full border border-black/5 dark:border-white/5 bg-transparent hover:bg-black/5 dark:hover:bg-white/5 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.92] flex items-center justify-center overflow-hidden"
       aria-label="Toggle Theme"
       type="button"
     >
-      <div className="relative w-4 h-4 flex items-center justify-center transition-transform duration-500 group-hover:rotate-[45deg]">
+      <div className="relative w-full h-full flex items-center justify-center">
         {isDark ? (
-          // Premium Sun Icon (Aesthetic dot-rays + glowing center)
-          <svg className="w-4.5 h-4.5 text-emerald-400 drop-shadow-[0_0_5px_rgba(52,211,153,0.45)] transition-all duration-300" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="4" fill="currentColor" fillOpacity="0.12" />
-            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+          // Ultra-minimal Sun
+          <svg className="w-[18px] h-[18px] text-[#F2F2F0] transition-transform duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:rotate-[90deg] group-hover:scale-110" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 3v1M12 20v1M4.22 4.22l.71.71M19.07 19.07l.71.71M3 12h1M20 12h1M4.22 19.07l.71-.71M19.07 4.22l.71-.71" />
           </svg>
         ) : (
-          // Premium Moon Icon (Aesthetic crescent + twinkling star)
-          <svg className="w-4.5 h-4.5 text-neutral-600 hover:text-neutral-800 transition-all duration-300" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" fill="currentColor" fillOpacity="0.08" />
-            <path d="M19 3v3M17.5 4.5h3" strokeWidth="1.5" />
+          // Ultra-minimal Moon
+          <svg className="w-[18px] h-[18px] text-[#111111] transition-transform duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:-rotate-[15deg] group-hover:scale-110" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
           </svg>
         )}
       </div>

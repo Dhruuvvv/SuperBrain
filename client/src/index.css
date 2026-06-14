@@ -10,6 +10,30 @@
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading font-normal italic;
   }
+  .theme {
+    --expo-out: linear(0 0%, 0.1684 2.66%, 0.3165 5.49%, 0.446 8.52%, 0.5581 11.78%, 0.6535 15.29%, 0.7341 19.11%, 0.8011 23.3%, 0.8557 27.93%, 0.8962 32.68%, 0.9283 38.01%, 0.9529 44.08%, 0.9711 51.14%, 0.9833 59.06%, 0.9915 68.74%, 1 100%);
+  }
+  ::view-transition-group(root) {
+    animation-duration: 1.2s;
+    animation-timing-function: cubic-bezier(0.25, 1, 0.3, 1);
+  }
+  ::view-transition-new(root) {
+    animation: theme-ripple 1.2s cubic-bezier(0.25, 1, 0.3, 1) both;
+    mix-blend-mode: normal;
+  }
+  ::view-transition-old(root),.dark::view-transition-old(root) {
+    animation: none;
+    z-index: -1;
+  }
+}
+
+@keyframes theme-ripple {
+  from {
+    clip-path: circle(0px at var(--x, 50%) var(--y, 50%));
+  }
+  to {
+    clip-path: circle(150vmax at var(--x, 50%) var(--y, 50%));
+  }
 }
 
 code {
@@ -36,6 +60,48 @@ code {
   }
   .bg-white, .dark\:bg-\[\#0c0c0c\], .dark\:bg-\[\#0d0d0d\] {
     border: 1px solid #ccc !important;
+    background: border-box;
     page-break-inside: avoid !important;
   }
+}
+
+/* Custom Premium Minimalist Scrollbar */
+:root {
+  --scrollbar-thumb: rgba(0, 0, 0, 0.35);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.6);
+}
+
+html.dark,
+body.dark,
+.dark {
+  --scrollbar-thumb: rgba(255, 255, 255, 0.35);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.6);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb) !important;
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover) !important;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Firefox compatibility */
+html, .custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }

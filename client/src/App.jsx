@@ -1,4 +1,4 @@
-import { Routes, Route, Link, Navigate } from "react-router-dom";
+import { Routes, Route, Link, Navigate, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { supabase } from "./utils/supabaseClient";
 import Login from "./pages/Login";
@@ -9,6 +9,130 @@ import Users from "./pages/Users";
 import Reels from "./pages/Reels";
 import Transcripts from "./pages/Transcripts";
 import ThemeToggle from "./components/ThemeToggle";
+import { Toaster } from "./components/ui/sonner";
+import { Brain } from "lucide-react";
+
+const STEPS = [
+  "Initializing neural core",
+  "Synchronizing database nodes",
+  "Restoring system parameters",
+  "Finalizing boot sequence"
+];
+
+function LoadingScreen() {
+  const [progress, setProgress] = useState(0);
+  const [stepIndex, setStepIndex] = useState(0);
+
+  useEffect(() => {
+    const intervalTime = 30;
+    const increment = 100 / (1500 / intervalTime); // Complete in 1.5s
+    const timer = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 100) {
+          clearInterval(timer);
+          return 100;
+        }
+        return prev + increment;
+      });
+    }, intervalTime);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const stepInterval = 1500 / STEPS.length;
+    const timer = setInterval(() => {
+      setStepIndex((prev) => {
+        if (prev < STEPS.length - 1) {
+          return prev + 1;
+        }
+        return prev;
+      });
+    }, stepInterval);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-[#FAFAF8] dark:bg-[#050505] text-[#111111] dark:text-[#F2F2F0] flex flex-col items-center justify-center font-sans p-6 relative overflow-hidden transition-colors duration-500">
+      {/* Custom Styles for Neural Blink */}
+      <style>{`
+        @keyframes neural-blink {
+          0%, 100% {
+            opacity: 0.3;
+            transform: scale(0.95);
+            filter: drop-shadow(0 0 4px rgba(16, 185, 129, 0.15));
+          }
+          50% {
+            opacity: 1;
+            transform: scale(1.05);
+            filter: drop-shadow(0 0 16px rgba(16, 185, 129, 0.5));
+          }
+        }
+        .animate-neural-blink {
+          animation: neural-blink 2s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+        }
+      `}</style>
+
+      {/* Noise Texture Overlay */}
+      <div className="pointer-events-none fixed inset-0 z-50 bg-[radial-gradient(#000_1px,transparent_1px)] dark:bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px] opacity-[0.02] dark:opacity-[0.03]" />
+
+      {/* Atmospheric Glow */}
+      <div className="pointer-events-none absolute w-[450px] h-[450px] bg-emerald-500/10 dark:bg-emerald-400/[0.02] rounded-full blur-[130px] z-0 animate-pulse" />
+
+      {/* Centered Minimal Container */}
+      <div className="w-full max-w-sm flex flex-col items-center gap-12 z-10 text-center">
+        
+        {/* Fine Rotating Ring & Premium Brain Icon */}
+        <div className="relative w-24 h-24 flex items-center justify-center">
+          <div className="absolute inset-0 rounded-full border border-black/[0.04] dark:border-white/[0.04]" />
+          <div className="absolute inset-2 rounded-full border border-t-emerald-500/35 dark:border-t-emerald-400/35 border-r-transparent border-b-transparent border-l-transparent animate-spin [animation-duration:3s]" />
+          <div className="absolute w-14 h-14 rounded-full bg-emerald-500/5 dark:bg-emerald-400/[0.01] blur-md" />
+          
+          <div className="relative z-10 animate-neural-blink flex items-center justify-center">
+            <Brain 
+              className="w-10 h-10 text-emerald-500 dark:text-emerald-400" 
+              strokeWidth={1.1} 
+            />
+          </div>
+        </div>
+
+        {/* Brand Curation */}
+        <div className="space-y-1.5">
+          <h1 className="font-heading text-4xl text-black dark:text-white font-normal italic leading-none tracking-wide">
+            SuperBrain
+          </h1>
+          <p className="text-[9px] font-mono tracking-[0.3em] uppercase text-black/30 dark:text-white/30">
+            Aesthetic Curation System
+          </p>
+        </div>
+
+        {/* Micro-Progress Bar */}
+        <div className="w-full space-y-4">
+          <div className="w-full h-[1px] bg-black/10 dark:bg-white/10 rounded-full overflow-hidden relative">
+            <div 
+              className="h-full bg-emerald-500/80 dark:bg-emerald-400/85 transition-all duration-300 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          
+          {/* Staggered Status & Percentage */}
+          <div className="flex justify-between items-center px-1 font-mono text-[9px] uppercase tracking-[0.2em] text-black/40 dark:text-white/40">
+            <span className="animate-pulse">{STEPS[stepIndex]}</span>
+            <span>{Math.round(progress)}%</span>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Decorative Cybernetic Frame Corner Elements */}
+      <div className="absolute top-8 left-8 w-6 h-6 border-t border-l border-black/[0.06] dark:border-white/[0.06] pointer-events-none" />
+      <div className="absolute top-8 right-8 w-6 h-6 border-t border-r border-black/[0.06] dark:border-white/[0.06] pointer-events-none" />
+      <div className="absolute bottom-8 left-8 w-6 h-6 border-b border-l border-black/[0.06] dark:border-white/[0.06] pointer-events-none" />
+      <div className="absolute bottom-8 right-8 w-6 h-6 border-b border-r border-black/[0.06] dark:border-white/[0.06] pointer-events-none" />
+    </div>
+  );
+}
 
 function App() {
   const [role, setRole] = useState("guest");
@@ -30,9 +154,10 @@ function App() {
 
     // 2. Auth Session Check
     async function checkUser() {
+      const startTime = Date.now();
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        if (session.user.email === "admin@gmail.com") {
+        if (session.user.email === "admin@gmail.com" || session.user.email === "admin@superbrain.com" || session.user.email === "owner@superbrain.com") {
           setRole("admin");
           setUsername("Admin");
         } else {
@@ -66,7 +191,15 @@ function App() {
           setUsername(profile?.username || profile?.full_name || session.user.email.split("@")[0]);
         }
       }
-      setLoading(false);
+      const elapsedTime = Date.now() - startTime;
+      const minDelay = 1800; // 1.8 seconds minimum loading animation
+      if (elapsedTime < minDelay) {
+        setTimeout(() => {
+          setLoading(false);
+        }, minDelay - elapsedTime);
+      } else {
+        setLoading(false);
+      }
     }
     checkUser();
   }, []);
@@ -78,76 +211,87 @@ function App() {
     window.location.href = "/login";
   }
 
+  const location = useLocation();
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
+
   if (loading) {
-    return (
-      <div className="min-h-screen bg-neutral-50 dark:bg-[#0a0a0a] text-neutral-900 dark:text-neutral-100 flex flex-col items-center justify-center gap-3 font-mono text-xs transition-colors duration-200">
-        <div className="w-6 h-6 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
-        <p>Booting SuperBrain Core...</p>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   // Check if we are in admin mode or public login view to render legacy container style
-  const isLegacyView = role === "admin" || role === "guest";
+  const isLegacyView = (role === "admin" || role === "guest") && !isAuthPage;
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-[#0a0a0a] text-neutral-900 dark:text-neutral-100 selection:bg-emerald-500 dark:selection:bg-emerald-400 selection:text-white dark:selection:text-black transition-colors duration-200">
       
-      {/* RENDER HEADER ONLY FOR ADMIN OR GUEST VIEWS */}
+      {/* PREMIUM FLOATING ADMIN/GUEST HEADER */}
       {isLegacyView && (
-        <div className="bg-white dark:bg-[#0f0f0f] border-b border-neutral-200 dark:border-neutral-900 px-8 py-4 flex flex-col md:flex-row items-center justify-between gap-4 transition-colors duration-200">
-          <h1 className="text-lg font-bold text-neutral-900 dark:text-neutral-200 font-mono flex items-center gap-2">
-            💡 SuperBrain
-            {username && (
-              <span className="text-xs font-normal text-emerald-600 dark:text-emerald-450">
-                👋 @{username}
+        <div className="fixed top-0 left-0 right-0 z-50 px-4 pt-6 pb-2 pointer-events-none">
+          <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 bg-white/70 dark:bg-[#111111]/80 backdrop-blur-xl border border-black/5 dark:border-white/10 p-2 pl-6 rounded-full shadow-2xl pointer-events-auto transition-colors duration-300">
+            <h1 className="text-xl font-bold text-neutral-900 dark:text-white flex items-center gap-2.5">
+              <span className="flex items-center justify-center bg-black dark:bg-white text-white dark:text-black rounded-md p-1.5 shadow-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"></path>
+                </svg>
               </span>
-            )}
-          </h1>
+              SuperBrain
+              {username && (
+                <span className="text-[10px] font-sans not-italic font-bold tracking-wider uppercase text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full ml-3 shadow-sm">
+                  Admin: @{username}
+                </span>
+              )}
+            </h1>
 
-          {/* NAVBAR */}
-          <div className="flex items-center gap-3">
-            {role === "guest" && (
-              <>
-                <Link to="/login">
-                  <button className="px-4 py-1.5 text-xs font-mono border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 rounded-[3px] transition-colors">
-                    Login
-                  </button>
-                </Link>
-                <Link to="/register">
-                  <button className="px-4 py-1.5 text-xs font-mono border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 rounded-[3px] transition-colors">
-                    Register
-                  </button>
-                </Link>
-              </>
-            )}
+            {/* NAVBAR */}
+            <div className="flex items-center gap-1">
+              {role === "guest" && (
+                <>
+                  <Link to="/login">
+                    <button className="px-5 py-2 text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-black dark:hover:text-white rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-all">
+                      Login
+                    </button>
+                  </Link>
+                  <Link to="/register">
+                    <button className="px-5 py-2 text-sm font-medium bg-black dark:bg-white text-white dark:text-black rounded-full hover:scale-105 transition-all shadow-lg">
+                      Register
+                    </button>
+                  </Link>
+                </>
+              )}
 
-            {role === "admin" && (
-              <>
-                <Link to="/admin/users">
-                  <button className="px-3 py-1.5 text-xs font-mono border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 rounded-[3px] transition-colors">
-                    👥 Users
+              {role === "admin" && (
+                <>
+                  <Link to="/admin/users">
+                    <button className="px-4 py-2 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-all">
+                      Users
+                    </button>
+                  </Link>
+                  <Link to="/admin/reels">
+                    <button className="px-4 py-2 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-all">
+                      Reels
+                    </button>
+                  </Link>
+                  <Link to="/admin/transcripts">
+                    <button className="px-4 py-2 text-sm font-medium text-neutral-600 dark:text-neutral-300 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-all">
+                      Transcripts
+                    </button>
+                  </Link>
+                  
+                  <div className="w-[1px] h-4 bg-black/10 dark:bg-white/10 mx-2" />
+                  
+                  <div className="scale-90 origin-center">
+                    <ThemeToggle />
+                  </div>
+                  
+                  <button 
+                    onClick={logout} 
+                    className="ml-2 px-4 py-2 text-sm font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 rounded-full transition-all"
+                  >
+                    Logout
                   </button>
-                </Link>
-                <Link to="/admin/reels">
-                  <button className="px-3 py-1.5 text-xs font-mono border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 rounded-[3px] transition-colors">
-                    🎥 Reels
-                  </button>
-                </Link>
-                <Link to="/admin/transcripts">
-                  <button className="px-3 py-1.5 text-xs font-mono border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 hover:border-neutral-400 dark:hover:border-neutral-700 bg-neutral-50 dark:bg-neutral-900 rounded-[3px] transition-colors">
-                    📝 Transcripts
-                  </button>
-                </Link>
-                <ThemeToggle />
-                <button 
-                  onClick={logout} 
-                  className="px-3 py-1.5 text-xs font-mono border border-rose-200 dark:border-rose-900 text-rose-600 dark:text-rose-400 hover:border-rose-450 dark:hover:border-rose-700 bg-rose-50 dark:bg-rose-950/20 rounded-[3px] transition-colors"
-                >
-                  Logout
-                </button>
-              </>
-            )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -161,7 +305,7 @@ function App() {
         <Route 
           path="/dashboard" 
           element={
-            role === "user" ? <Dashboard /> : <Navigate to="/login" replace />
+            role === "user" ? <Dashboard /> : role === "admin" ? <Navigate to="/admin/users" replace /> : <Navigate to="/login" replace />
           } 
         />
         <Route 
@@ -177,8 +321,8 @@ function App() {
         <Route path="/admin/transcripts" element={<Transcripts />} />
 
         {/* Fallback */}
-        <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>
+      <Toaster />
     </div>
   );
 }
