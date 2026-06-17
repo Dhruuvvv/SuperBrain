@@ -147,3 +147,6 @@ convert_cookies.js
 cookies.json
 table data
 graphify-out
+micilenous
+*.puml
+generate_superbrain_by_perplexity.py

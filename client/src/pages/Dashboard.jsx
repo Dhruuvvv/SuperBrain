@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import ReactMarkdown from "react-markdown";
 import axios from "axios";
 import { supabase } from "../utils/supabaseClient";
 import ReelCard from "../components/ReelCard";
@@ -14,7 +15,7 @@ import { ScrollArea, ScrollBar } from "components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "components/ui/sheet";
 import { toast } from "sonner";
-import { SlideToUnlock, SlideToUnlockTrack, SlideToUnlockText, SlideToUnlockHandle } from "../components/slide-to-unlock";
+
 import Lenis from "lenis";
 
 const containerVariants = {
@@ -82,6 +83,7 @@ export default function Dashboard() {
     { sender: "ai", text: "Hi! I am SuperBrain Assistant. Ask me anything about your saved product reviews, tools, how-to guides, and tutorials." }
   ]);
   const [chatLoading, setChatLoading] = useState(false);
+  const chatScrollRef = useRef(null);
 
   // Collections state
   const [collections, setCollections] = useState([]);
@@ -209,15 +211,23 @@ export default function Dashboard() {
 
     const userMsg = chatQuery.trim();
     setChatQuery("");
-    setChatHistory((prev) => [...prev, { sender: "user", text: userMsg }]);
+    const updatedHistory = [...chatHistory, { sender: "user", text: userMsg }];
+    setChatHistory(updatedHistory);
     setChatLoading(true);
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
+
+      // Build conversation history for context (last 6 messages)
+      const conversationHistory = updatedHistory.slice(-6).map((msg) => ({
+        role: msg.sender === "user" ? "user" : "assistant",
+        content: msg.text
+      }));
+
       const response = await axios.post(
         "http://localhost:5000/api/chat",
-        { query: userMsg },
+        { query: userMsg, history: conversationHistory },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -235,13 +245,20 @@ export default function Dashboard() {
         ...prev,
         {
           sender: "ai",
-          text: "⚠️ Sorry, I encountered an error connecting to the chat service. Please make sure the database migrations were executed."
+          text: "⚠️ Sorry, I encountered an error. Please try again."
         }
       ]);
     } finally {
       setChatLoading(false);
     }
   };
+
+  // Auto-scroll chat to bottom on new messages
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatHistory, chatLoading]);
 
   // Fetch reels from Node backend
   const fetchReels = async (page = 1, search = searchQuery) => {
@@ -941,31 +958,51 @@ export default function Dashboard() {
         </SheetTrigger>
         <SheetContent className="sm:max-w-[450px] w-full p-6 flex flex-col bg-[#FAFAF8] dark:bg-[#0A0B0D] border-l border-[#E3E3DF] dark:border-[#1A1D22]">
           <SheetHeader>
-            <SheetTitle className="text-center font-heading font-normal italic text-[28px] text-[#111111] dark:text-[#F2F2F0] py-2">
-              SuperBrain AI
-            </SheetTitle>
+            <div className="flex items-center justify-between py-2">
+              <SheetTitle className="font-heading font-normal italic text-[28px] text-[#111111] dark:text-[#F2F2F0]">
+                SuperBrain AI
+              </SheetTitle>
+              {chatHistory.length > 1 && (
+                <button
+                  onClick={() => setChatHistory([{ sender: "ai", text: "Hi! I am SuperBrain Assistant. Ask me anything about your saved product reviews, tools, how-to guides, and tutorials." }])}
+                  className="text-[11px] font-mono uppercase tracking-wider text-[#6B7280] dark:text-[#8B93A1] hover:text-red-500 dark:hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-red-500/5"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
           </SheetHeader>
-          <div className="flex-1 overflow-y-auto space-y-4 py-4 pr-2" data-lenis-prevent>
+
+          {/* Message List */}
+          <div ref={chatScrollRef} className="flex-1 overflow-y-auto space-y-4 py-4 pr-1" data-lenis-prevent>
             {chatHistory.map((msg, index) => (
               <div key={index} className={`flex flex-col ${msg.sender === "user" ? "items-end" : "items-start"}`}>
-                <div className={`max-w-[85%] rounded-2xl px-5 py-3 ${msg.sender === "user"
-                  ? "bg-[#F1F1EE] dark:bg-[#0E1013] text-[#111111] dark:text-[#F2F2F0]"
-                  : "bg-[#FAFAF8] dark:bg-[#0A0B0D] border border-[#E3E3DF] dark:border-[#1A1D22] text-[#111111] dark:text-[#F2F2F0] shadow-sm"
-                  }`}>
-                  <p className="text-[16px] leading-relaxed">{msg.text}</p>
+                <div className={`max-w-[88%] rounded-2xl px-4 py-3 ${
+                  msg.sender === "user"
+                    ? "bg-[#111111] dark:bg-[#F2F2F0] text-[#F2F2F0] dark:text-[#111111]"
+                    : "bg-white dark:bg-[#0E1013] border border-[#E3E3DF] dark:border-[#1A1D22] text-[#111111] dark:text-[#F2F2F0] shadow-sm"
+                }`}>
+                  {msg.sender === "user" ? (
+                    <p className="text-[14px] leading-relaxed">{msg.text}</p>
+                  ) : (
+                    <div className="text-[14px] leading-relaxed prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:font-semibold prose-headings:my-2 prose-ul:my-1 prose-li:my-0.5 prose-a:text-emerald-600 dark:prose-a:text-emerald-400 prose-code:bg-black/5 dark:prose-code:bg-white/10 prose-code:rounded prose-code:px-1 prose-code:text-[12px]">
+                      <ReactMarkdown>{msg.text}</ReactMarkdown>
+                    </div>
+                  )}
 
-                  {/* References Card */}
+                  {/* Citations */}
                   {msg.references && msg.references.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-[#E3E3DF] dark:border-[#1A1D22] space-y-1.5">
-                      <p className="text-[12px] font-semibold text-[#6B7280] dark:text-[#8B93A1] uppercase tracking-wider">Citations:</p>
-                      <div className="grid grid-cols-1 gap-1.5">
+                    <div className="mt-3 pt-3 border-t border-black/10 dark:border-white/10 space-y-1.5">
+                      <p className="text-[10px] font-mono uppercase tracking-[0.15em] text-[#6B7280] dark:text-[#8B93A1]">Sources</p>
+                      <div className="flex flex-col gap-1.5">
                         {msg.references.map((ref) => (
                           <a
                             key={ref.id}
                             href={`/imports/${ref.id}`}
-                            className="inline-flex items-center justify-between text-[12px] font-semibold text-[#111111] dark:text-[#F2F2F0] hover:underline bg-[#F1F1EE] dark:bg-[#0E1013] border border-[#E3E3DF] dark:border-[#1A1D22] p-2 rounded-lg"
+                            className="inline-flex items-center gap-2 text-[12px] font-medium text-[#111111] dark:text-[#F2F2F0] bg-black/[0.04] dark:bg-white/[0.04] hover:bg-black/[0.08] dark:hover:bg-white/[0.08] border border-black/5 dark:border-white/5 px-3 py-2 rounded-xl transition-colors"
                           >
-                            <span className="truncate max-w-[200px]">💡 {ref.title}</span>
+                            <svg className="w-3 h-3 shrink-0 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>
+                            <span className="truncate max-w-[220px]">{ref.title}</span>
                           </a>
                         ))}
                       </div>
@@ -974,21 +1011,24 @@ export default function Dashboard() {
                 </div>
               </div>
             ))}
+
             {chatLoading && (
-              <div className="bg-[#FAFAF8] dark:bg-[#0A0B0D] border border-[#E3E3DF] dark:border-[#1A1D22] shadow-sm rounded-2xl px-5 py-3 w-max">
-                <span className="flex space-x-1">
-                  <span className="w-2 h-2 bg-[#6B7280] dark:bg-[#8B93A1] rounded-full animate-bounce" />
-                  <span className="w-2 h-2 bg-[#6B7280] dark:bg-[#8B93A1] rounded-full animate-bounce delay-75" />
-                  <span className="w-2 h-2 bg-[#6B7280] dark:bg-[#8B93A1] rounded-full animate-bounce delay-150" />
+              <div className="bg-white dark:bg-[#0E1013] border border-[#E3E3DF] dark:border-[#1A1D22] shadow-sm rounded-2xl px-5 py-4 w-max">
+                <span className="flex items-center space-x-1.5">
+                  <span className="w-1.5 h-1.5 bg-[#6B7280] dark:bg-[#8B93A1] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 bg-[#6B7280] dark:bg-[#8B93A1] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 bg-[#6B7280] dark:bg-[#8B93A1] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </span>
               </div>
             )}
           </div>
-          <form onSubmit={handleSendQuery} className="mt-auto relative">
+
+          {/* Input */}
+          <form onSubmit={handleSendQuery} className="mt-2 relative">
             <Input
               type="text"
               placeholder="Ask anything..."
-              className="w-full pl-6 pr-14 h-14 rounded-full bg-[#FAFAF8] dark:bg-[#0A0B0D] border border-[#E3E3DF] dark:border-[#1A1D22] focus-visible:ring-2 focus-visible:ring-[#111111] dark:focus-visible:ring-[#F2F2F0] text-[#111111] dark:text-[#F2F2F0] placeholder:text-[#6B7280] dark:placeholder:text-[#8B93A1]"
+              className="w-full pl-5 pr-14 h-14 rounded-full bg-[#F1F1EE] dark:bg-[#0E1013] border border-[#E3E3DF] dark:border-[#1A1D22] focus-visible:ring-2 focus-visible:ring-[#111111] dark:focus-visible:ring-[#F2F2F0] text-[14px] text-[#111111] dark:text-[#F2F2F0] placeholder:text-[#6B7280] dark:placeholder:text-[#8B93A1]"
               value={chatQuery}
               onChange={(e) => setChatQuery(e.target.value)}
               disabled={chatLoading}
@@ -997,7 +1037,7 @@ export default function Dashboard() {
               type="submit"
               size="icon"
               disabled={chatLoading || !chatQuery.trim()}
-              className="absolute right-2 top-2 rounded-full h-10 w-10 bg-[#111111] hover:bg-[#333333] dark:bg-[#F2F2F0] dark:hover:bg-[#D4D4D8] text-[#FAFAF8] dark:text-[#111111] transition-colors"
+              className="absolute right-2 top-2 rounded-full h-10 w-10 bg-[#111111] hover:bg-[#333333] dark:bg-[#F2F2F0] dark:hover:bg-[#D4D4D8] text-[#FAFAF8] dark:text-[#111111] transition-colors disabled:opacity-40"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
             </Button>

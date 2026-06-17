@@ -31,9 +31,15 @@ class ChatContextItem(BaseModel):
     how_to_guide: Optional[Dict[str, Any]] = None
 
 
+class ConversationMessage(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
+
 class ChatRequest(BaseModel):
     query: str
     context: List[ChatContextItem]
+    history: List[ConversationMessage] = []
 
 
 class MindMapRequest(BaseModel):

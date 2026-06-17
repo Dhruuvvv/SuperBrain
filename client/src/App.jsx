@@ -8,6 +8,7 @@ import ReelDetail from "./pages/ReelDetail";
 import Users from "./pages/Users";
 import Reels from "./pages/Reels";
 import Transcripts from "./pages/Transcripts";
+import Landing from "./pages/Landing";
 import ThemeToggle from "./components/ThemeToggle";
 import { Toaster } from "./components/ui/sonner";
 import { Brain } from "lucide-react";
@@ -212,7 +213,7 @@ function App() {
   }
 
   const location = useLocation();
-  const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/';
 
   if (loading) {
     return <LoadingScreen />;
@@ -298,6 +299,9 @@ function App() {
 
       {/* CORE ROUTES */}
       <Routes>
+        {/* Public Landing */}
+        <Route path="/" element={role === "user" ? <Navigate to="/dashboard" replace /> : role === "admin" ? <Navigate to="/admin/users" replace /> : <Landing />} />
+
         <Route path="/login" element={<Login setRole={setRole} setUsername={setUsername} />} />
         <Route path="/register" element={<Register />} />
         
@@ -305,13 +309,13 @@ function App() {
         <Route 
           path="/dashboard" 
           element={
-            role === "user" ? <Dashboard /> : role === "admin" ? <Navigate to="/admin/users" replace /> : <Navigate to="/login" replace />
+            role === "user" ? <Dashboard /> : role === "admin" ? <Navigate to="/admin/users" replace /> : <Navigate to="/" replace />
           } 
         />
         <Route 
           path="/imports/:id" 
           element={
-            role === "user" ? <ReelDetail /> : <Navigate to="/login" replace />
+            role === "user" ? <ReelDetail /> : <Navigate to="/" replace />
           } 
         />
 
@@ -321,6 +325,7 @@ function App() {
         <Route path="/admin/transcripts" element={<Transcripts />} />
 
         {/* Fallback */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Toaster />
     </div>

@@ -1,4 +1,6 @@
 require("dotenv").config();
+const dns = require("node:dns");
+dns.setDefaultResultOrder("ipv4first");
 const express = require("express");
 const cors = require("cors");
 const { exec } = require("child_process");
@@ -585,7 +587,7 @@ app.get("/api/reels", authMiddleware, async (req, res) => {
             // 2. Perform Vector Similarity Search in Supabase via RPC
             const { data: matchedReels, error: rpcErr } = await supabase.rpc("match_reels", {
                 query_embedding: queryEmbedding,
-                match_threshold: 0.3, // Higher threshold for stricter precision
+                match_threshold: 0.50, // Stricter threshold for higher precision
                 match_count: limit,
                 filter_user_id: userId
             });
@@ -783,7 +785,7 @@ app.delete("/api/reels/:id", authMiddleware, async (req, res) => {
 
 // POST /api/chat: Semantic Search and LLM Chat via RAG
 app.post("/api/chat", authMiddleware, async (req, res) => {
-    const { query } = req.body;
+    const { query, history = [] } = req.body;
     const userId = req.user.id;
 
     if (!query || !query.trim()) {
@@ -793,15 +795,28 @@ app.post("/api/chat", authMiddleware, async (req, res) => {
     try {
         console.log(`[Chat] User ${userId} queried: "${query}"`);
         
+        // 1. Build enriched search query using conversation context
+        // This ensures follow-up queries like "how can i use it?" find the right reels
+        let searchQuery = query;
+        if (history && history.length > 0) {
+            // Find the most recent assistant message to use as context
+            const lastAiTurn = [...history].reverse().find(m => m.role === "assistant");
+            if (lastAiTurn) {
+                // Prepend first 150 chars of last AI response as topical context
+                const aiContext = lastAiTurn.content.replace(/[#*`]/g, "").slice(0, 150);
+                searchQuery = `${aiContext} ${query}`;
+            }
+        }
+
         // 1. Get embedding from Python AI Server
         const pythonUrl = process.env.PYTHON_SERVICE_URL || "http://localhost:8000";
-        const embedRes = await axios.post(`${pythonUrl}/embed`, { text: query });
+        const embedRes = await axios.post(`${pythonUrl}/embed`, { text: searchQuery });
         const queryEmbedding = embedRes.data.embedding;
 
         // 2. Perform Vector Cosine Similarity Search in Supabase via RPC
         const { data: matchedReels, error: rpcErr } = await supabase.rpc("match_reels", {
             query_embedding: queryEmbedding,
-            match_threshold: 0.3, // Stricter threshold to get highly relevant context
+            match_threshold: 0.50, // Stricter threshold to get highly relevant context and avoid hallucinated citations
             match_count: 4,
             filter_user_id: userId
         });
@@ -811,12 +826,25 @@ app.post("/api/chat", authMiddleware, async (req, res) => {
             throw rpcErr;
         }
 
-        console.log(`[Chat] Found ${matchedReels ? matchedReels.length : 0} matching reels.`);
+        const matchCount = matchedReels ? matchedReels.length : 0;
+        console.log(`[Chat] Found ${matchCount} matching reels.`);
+
+        // Log the search to search_history
+        try {
+            await supabase.from("search_history").insert({
+                user_id: userId,
+                search_query: query,
+                results_count: matchCount
+            });
+        } catch (historyErr) {
+            console.error("[Chat] Failed to log search history:", historyErr.message);
+        }
 
         if (!matchedReels || matchedReels.length === 0) {
             const chatRes = await axios.post(`${pythonUrl}/chat`, {
                 query,
-                context: []
+                context: [],
+                history
             });
             return res.json({
                 answer: chatRes.data.answer,
@@ -837,7 +865,8 @@ app.post("/api/chat", authMiddleware, async (req, res) => {
         // 4. Send request to Python Chat endpoint
         const chatRes = await axios.post(`${pythonUrl}/chat`, {
             query,
-            context: formattedContext
+            context: formattedContext,
+            history
         });
 
         // 5. Build references list for frontend citation cards
