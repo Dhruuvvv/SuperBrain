@@ -44,22 +44,26 @@ function Nav() {
       }}
       animate={hidden ? "hidden" : "visible"}
       transition={{ duration: 0.6, ease: easing }}
-      className="fixed top-0 left-0 right-0 z-50 flex justify-center pt-5 px-4 pointer-events-none"
+      className="fixed top-0 left-0 right-0 z-50 flex justify-center pt-6 px-4 pointer-events-none"
     >
       <motion.nav
         initial={false}
         animate={{
-          background: scrolled ? "rgba(8,8,8,0.85)" : "rgba(8,8,8,0.0)",
-          backdropFilter: scrolled ? "blur(24px)" : "blur(0px)",
+          background: scrolled ? "rgba(12,12,12,0.6)" : "rgba(8,8,8,0.0)",
+          backdropFilter: scrolled ? "blur(32px) saturate(150%)" : "blur(0px) saturate(100%)",
           borderColor: scrolled ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.0)",
+          boxShadow: scrolled ? "0 12px 40px rgba(0,0,0,0.8), inset 0 1px 1px rgba(255,255,255,0.05)" : "none",
         }}
         transition={{ duration: 0.5 }}
         className="pointer-events-auto w-full max-w-5xl flex items-center justify-between px-6 py-3 rounded-full border border-transparent"
       >
-        <span className="font-heading text-xl text-white italic">SuperBrain</span>
+        <div className="flex items-center gap-3">
+          <img src="/SuperBrain_logo.png" alt="SuperBrain Logo" className="h-11 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity" />
+          <span className="font-heading text-xl text-white italic">SuperBrain</span>
+        </div>
         <div className="flex items-center gap-2">
           <Link to="/login">
-            <motion.button 
+            <motion.button
               whileHover={{ backgroundColor: "rgba(255,255,255,0.05)" }}
               whileTap={{ scale: 0.97 }}
               className="px-5 py-2 text-[13px] font-medium text-white/60 hover:text-white rounded-full transition-colors duration-300"
@@ -68,7 +72,7 @@ function Nav() {
             </motion.button>
           </Link>
           <Link to="/register">
-            <motion.button 
+            <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.96 }}
               className="group flex items-center gap-2 px-5 py-2.5 text-[13px] font-medium bg-white text-black rounded-full hover:bg-emerald-50 transition-colors"
@@ -437,13 +441,42 @@ function CTA() {
 /* ─────────────── FOOTER ─────────────── */
 function Footer() {
   return (
-    <footer className="bg-[#080808] border-t border-white/[0.06] py-12 px-4">
-      <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-        <span className="font-heading italic text-white/40 text-xl">SuperBrain</span>
-        <p className="font-body text-[12px] text-white/20 tracking-wider">© {new Date().getFullYear()} SuperBrain. All rights reserved.</p>
-        <div className="flex items-center gap-6">
-          <Link to="/login" className="text-[12px] text-white/30 hover:text-white/60 transition-colors font-body">Sign in</Link>
-          <Link to="/register" className="text-[12px] text-white/30 hover:text-white/60 transition-colors font-body">Register</Link>
+    <footer className="bg-[#080808] border-t border-white/[0.04] pt-24 pb-12 px-4 relative overflow-hidden">
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[300px] bg-emerald-500/[0.03] blur-[120px] rounded-full pointer-events-none" />
+      <div className="max-w-5xl mx-auto relative z-10">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-24 gap-12">
+          <div className="flex flex-col gap-6">
+            <div className="flex items-center gap-3 mb-2">
+              <img src="/SuperBrain_logo.png" alt="SuperBrain" className="h-14 w-auto object-contain opacity-90" />
+              <span className="font-heading italic text-white text-3xl tracking-wide">SuperBrain</span>
+            </div>
+            <p className="font-body text-[14px] text-white/40 max-w-sm leading-relaxed">
+              The premium intelligence engine for modern content creators. Stop losing ideas in the feed.
+            </p>
+          </div>
+          <div className="flex gap-16 md:gap-24">
+            <div className="flex flex-col gap-4">
+              <span className="text-[10px] uppercase tracking-[0.2em] font-medium text-white/30">Platform</span>
+              <Link to="/login" className="text-[14px] text-white/50 hover:text-white transition-colors font-body">Sign in</Link>
+              <Link to="/register" className="text-[14px] text-white/50 hover:text-white transition-colors font-body">Get Started</Link>
+              <a href="#features" className="text-[14px] text-white/50 hover:text-white transition-colors font-body">Features</a>
+            </div>
+            <div className="flex flex-col gap-4">
+              <span className="text-[10px] uppercase tracking-[0.2em] font-medium text-white/30">Legal</span>
+              <a href="#" className="text-[14px] text-white/50 hover:text-white transition-colors font-body">Privacy Policy</a>
+              <a href="#" className="text-[14px] text-white/50 hover:text-white transition-colors font-body">Terms of Service</a>
+            </div>
+          </div>
+        </div>
+        
+        <div className="pt-8 border-t border-white/[0.06] flex flex-col md:flex-row items-center justify-between gap-6">
+          <p className="font-body text-[12px] text-white/30 tracking-wider uppercase">
+            © {new Date().getFullYear()} SuperBrain. All rights reserved.
+          </p>
+          <div className="flex items-center gap-4 border border-white/5 bg-white/[0.02] px-4 py-2 rounded-full shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-[pulse_2s_ease-in-out_infinite]" />
+            <span className="text-[11px] uppercase tracking-wider text-white/50 font-body font-medium">Systems Operational</span>
+          </div>
         </div>
       </div>
     </footer>
