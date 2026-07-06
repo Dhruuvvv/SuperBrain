@@ -1154,7 +1154,7 @@ app.post("/transcribe-reel", authMiddleware, async (req, res) => {
         const downloadCmd = `yt-dlp.exe -x --audio-format wav -o "${audioPath}" "${cleanUrl}"`;
         await execPromise(downloadCmd);
         console.log(`[Legacy Endpoint] Audio downloaded. Calling Python AI Server...`);
-        const ai = await axios.post("http://localhost:8000/transcribe", { audio_path: audioPath });
+        const ai = await axios.post(`${pythonServiceUrl}/transcribe`, { audio_path: audioPath });
         console.log(`[Legacy Endpoint] Transcription successful!`);
         res.json(ai.data);
         if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);

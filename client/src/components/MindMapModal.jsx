@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { supabase } from "../utils/supabaseClient";
+import { API_URL } from "../utils/api";
 
 export default function MindMapModal({ isOpen, onClose, reelId, reelData, onMindMapGenerated }) {
   const [mindMap, setMindMap] = useState(null);
@@ -160,7 +161,7 @@ export default function MindMapModal({ isOpen, onClose, reelId, reelData, onMind
       const token = session?.access_token;
       if (!token) throw new Error("No active session found.");
 
-      const res = await axios.post(`http://localhost:5000/api/reels/${reelId}/mindmap`, {
+      const res = await axios.post(`${API_URL}/api/reels/${reelId}/mindmap`, {
         detail_level: actualDetailLevel
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -396,7 +397,7 @@ export default function MindMapModal({ isOpen, onClose, reelId, reelData, onMind
       const token = session?.access_token;
       if (!token) throw new Error("No active session found.");
 
-      const res = await axios.post(`http://localhost:5000/api/reels/${reelId}/mindmap`, {
+      const res = await axios.post(`${API_URL}/api/reels/${reelId}/mindmap`, {
         detail_level: detailLevel
       }, {
         headers: { Authorization: `Bearer ${token}` }

@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { supabase } from "../utils/supabaseClient";
+import { API_URL } from "../utils/api";
 
 import { Button } from "components/ui/button";
 
@@ -23,12 +24,12 @@ export default function ReelCard({ reel, collections = [], onRefreshCollections 
 
       if (isAdded) {
         // Remove from collection
-        await axios.delete(`http://localhost:5000/api/collections/${collectionId}/reels/${id}`, {
+        await axios.delete(`${API_URL}/api/collections/${collectionId}/reels/${id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
       } else {
         // Add to collection
-        await axios.post(`http://localhost:5000/api/collections/${collectionId}/reels`, 
+        await axios.post(`${API_URL}/api/collections/${collectionId}/reels`, 
           { reelId: id },
           { headers: { Authorization: `Bearer ${token}` } }
         );

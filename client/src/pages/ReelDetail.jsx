@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { supabase } from "../utils/supabaseClient";
+import { API_URL } from "../utils/api";
 import ThemeToggle from "../components/ThemeToggle";
 import MindMapModal from "../components/MindMapModal";
 import { Button } from "../components/ui/button";
@@ -92,7 +93,7 @@ export default function ReelDetail() {
           return;
         }
 
-        const response = await axios.get(`http://localhost:5000/api/reels/${id}`, {
+        const response = await axios.get(`${API_URL}/api/reels/${id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
 
@@ -118,7 +119,7 @@ export default function ReelDetail() {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
 
-      await axios.delete(`http://localhost:5000/api/reels/${id}`, {
+      await axios.delete(`${API_URL}/api/reels/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -154,7 +155,7 @@ export default function ReelDetail() {
         .filter((t) => t.length > 0);
 
       const response = await axios.patch(
-        `http://localhost:5000/api/reels/${id}/metadata`,
+        `${API_URL}/api/reels/${id}/metadata`,
         {
           notes: notes,
           tags: formattedTags,

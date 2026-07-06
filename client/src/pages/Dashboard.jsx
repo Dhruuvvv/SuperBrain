@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import axios from "axios";
 import { supabase } from "../utils/supabaseClient";
+import { API_URL } from "../utils/api";
 import ReelCard from "../components/ReelCard";
 import ThemeToggle from "../components/ThemeToggle";
 import { FaviconSearch } from "../components/unlumen-ui/favicon-search";
@@ -170,7 +171,7 @@ export default function Dashboard() {
       const token = session?.access_token;
       if (!token) return;
 
-      const response = await axios.get("http://localhost:5000/api/collections", {
+      const response = await axios.get(`${API_URL}/api/collections`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setCollections(response.data || []);
@@ -189,7 +190,7 @@ export default function Dashboard() {
       const token = session?.access_token;
 
       const res = await axios.post(
-        "http://localhost:5000/api/collections",
+        `${API_URL}/api/collections`,
         { name: newCollectionName.trim() },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -226,7 +227,7 @@ export default function Dashboard() {
       }));
 
       const response = await axios.post(
-        "http://localhost:5000/api/chat",
+        `${API_URL}/api/chat`,
         { query: userMsg, history: conversationHistory },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -274,7 +275,7 @@ export default function Dashboard() {
         return;
       }
 
-      const response = await axios.get(`http://localhost:5000/api/reels?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`, {
+      const response = await axios.get(`${API_URL}/api/reels?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -358,7 +359,7 @@ export default function Dashboard() {
       }
 
       await axios.post(
-        "http://localhost:5000/api/reels",
+        `${API_URL}/api/reels`,
         { url: newUrl },
         { headers: { Authorization: `Bearer ${token}` } }
       );
