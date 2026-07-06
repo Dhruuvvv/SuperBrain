@@ -151,3 +151,5 @@ micilenous
 *.puml
 generate_superbrain_by_perplexity.py
 server/create_admin.js
+server/public/thumbnails/*
+!server/public/thumbnails/.gitkeep
