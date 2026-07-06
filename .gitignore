@@ -155,3 +155,4 @@ server/public/thumbnails/*
 !server/public/thumbnails/.gitkeep
 !client/public/SuperBrain_logo.png
 !client/public/logo192.png
+!client/public/favicon.png
