@@ -8,7 +8,10 @@ export default function Admin() {
     return (
         <div style={{ padding: "40px" }}>
             {/* Niche navbar - sirf yahan */}
-            <div style={styles.navContainer}>
+            <div style={{ ...styles.navContainer, alignItems: "center" }}>
+                <Link to="/" style={{ textDecoration: "none", marginRight: "auto" }}>
+                    <img src="/SuperBrain_logo.png" alt="SuperBrain" style={{ height: 40, width: "auto", objectFit: "contain" }} />
+                </Link>
                 <Link to="/admin/users" style={{ textDecoration: "none" }}>
                     <button style={{
                         ...styles.navBtn,
