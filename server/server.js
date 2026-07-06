@@ -50,6 +50,41 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Helper to upload media/thumbnails to Supabase Storage with local fallback
+async function uploadThumbnailToSupabase(filePath, reelId) {
+    try {
+        if (!fs.existsSync(filePath)) {
+            console.error(`[Storage] File not found: ${filePath}`);
+            return null;
+        }
+        const fileExt = path.extname(filePath) || ".jpg";
+        const fileName = `${reelId}${fileExt}`;
+        const fileBuffer = fs.readFileSync(filePath);
+        
+        let contentType = "image/jpeg";
+        if (fileExt === ".webp") contentType = "image/webp";
+        else if (fileExt === ".png") contentType = "image/png";
+
+        const { error: uploadErr } = await supabase.storage
+            .from("thumbnails")
+            .upload(fileName, fileBuffer, {
+                contentType,
+                upsert: true
+            });
+
+        if (uploadErr) {
+            console.error(`[Storage] Upload failed for ${fileName}:`, uploadErr.message);
+            return null;
+        }
+
+        const { data } = supabase.storage.from("thumbnails").getPublicUrl(fileName);
+        return data.publicUrl;
+    } catch (err) {
+        console.error("[Storage] Helper function error:", err.message);
+        return null;
+    }
+}
+
 const pythonServiceUrl = process.env.PYTHON_SERVICE_URL || "http://localhost:8000";
 
 // --- Middleware ---
@@ -296,12 +331,19 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
                 const extractThumbCmd = `ffmpeg -i "${videoPath}" -ss 00:00:01 -vframes 1 -y "${localThumbnailPath}"`;
                 try {
                     await execPromise(extractThumbCmd);
-                    const hostUrl = `${req.protocol}://${req.get("host")}`;
-                    const localThumbnailUrl = `${hostUrl}/thumbnails/${reelId}.jpg`;
+                    
+                    let thumbnailUrl = await uploadThumbnailToSupabase(localThumbnailPath, reelId);
+                    if (!thumbnailUrl) {
+                        const hostUrl = `${req.protocol}://${req.get("host")}`;
+                        thumbnailUrl = `${hostUrl}/thumbnails/${reelId}.jpg`;
+                        console.log(`[${reelId}] Supabase upload failed. Falling back to local thumbnail: ${thumbnailUrl}`);
+                    } else {
+                        console.log(`[${reelId}] Video thumbnail uploaded to Supabase Storage: ${thumbnailUrl}`);
+                    }
+
                     await supabase.from("reels").update({
-                        thumbnail_url: localThumbnailUrl
+                        thumbnail_url: thumbnailUrl
                     }).eq("id", reelId);
-                    console.log(`[${reelId}] Local video thumbnail saved: ${localThumbnailUrl}`);
                 } catch (ffmpegThumbErr) {
                     console.warn(`[${reelId}] Video thumbnail extraction failed:`, ffmpegThumbErr.message);
                 }
@@ -327,12 +369,18 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
                 const localThumbnailPath = path.join(thumbnailsDir, `${reelId}${imgExt}`);
                 fs.copyFileSync(path.join(tempDir, imgFile), localThumbnailPath);
                 
-                const hostUrl = `${req.protocol}://${req.get("host")}`;
-                const localThumbnailUrl = `${hostUrl}/thumbnails/${reelId}${imgExt}`;
+                let thumbnailUrl = await uploadThumbnailToSupabase(localThumbnailPath, reelId);
+                if (!thumbnailUrl) {
+                    const hostUrl = `${req.protocol}://${req.get("host")}`;
+                    thumbnailUrl = `${hostUrl}/thumbnails/${reelId}${imgExt}`;
+                    console.log(`[${reelId}] Supabase upload failed. Falling back to local thumbnail: ${thumbnailUrl}`);
+                } else {
+                    console.log(`[${reelId}] Single image thumbnail uploaded to Supabase Storage: ${thumbnailUrl}`);
+                }
+
                 await supabase.from("reels").update({
-                    thumbnail_url: localThumbnailUrl
+                    thumbnail_url: thumbnailUrl
                 }).eq("id", reelId);
-                console.log(`[${reelId}] Local single image thumbnail saved: ${localThumbnailUrl}`);
             } else {
                 throw new Error("Image download failed — file not found in temp directory");
             }
@@ -372,12 +420,18 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
                 const localThumbnailPath = path.join(thumbnailsDir, `${reelId}${imgExt}`);
                 fs.copyFileSync(firstImgPath, localThumbnailPath);
 
-                const hostUrl = `${req.protocol}://${req.get("host")}`;
-                const localThumbnailUrl = `${hostUrl}/thumbnails/${reelId}${imgExt}`;
+                let thumbnailUrl = await uploadThumbnailToSupabase(localThumbnailPath, reelId);
+                if (!thumbnailUrl) {
+                    const hostUrl = `${req.protocol}://${req.get("host")}`;
+                    thumbnailUrl = `${hostUrl}/thumbnails/${reelId}${imgExt}`;
+                    console.log(`[${reelId}] Supabase upload failed. Falling back to local thumbnail: ${thumbnailUrl}`);
+                } else {
+                    console.log(`[${reelId}] Carousel thumbnail uploaded to Supabase Storage: ${thumbnailUrl}`);
+                }
+
                 await supabase.from("reels").update({
-                    thumbnail_url: localThumbnailUrl
+                    thumbnail_url: thumbnailUrl
                 }).eq("id", reelId);
-                console.log(`[${reelId}] Local carousel thumbnail saved: ${localThumbnailUrl}`);
             }
         }
 
