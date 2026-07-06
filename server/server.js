@@ -1143,7 +1143,7 @@ app.patch("/api/reels/:id/metadata", authMiddleware, async (req, res) => {
 
 
 // KEEP EXISTING FOR BACKWARD COMPATIBILITY (if needed by frontend until updated)
-app.post("/transcribe-reel", async (req, res) => {
+app.post("/transcribe-reel", authMiddleware, async (req, res) => {
     // ... existing implementation ...
     const url = req.body.url;
     if (!url) return res.status(400).json({ error: "URL required" });
