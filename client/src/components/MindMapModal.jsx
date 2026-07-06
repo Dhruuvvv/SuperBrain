@@ -550,7 +550,7 @@ export default function MindMapModal({ isOpen, onClose, reelId, reelData, onMind
           { border: "#6366F1", text: "#EEF2FF", bg: "rgba(99, 102, 241, 0.04)", line: "#4F46E5", neon: "rgba(99, 102, 241, 0.2)" },
           { border: "#F59E0B", text: "#FEF3C7", bg: "rgba(245, 158, 11, 0.04)", line: "#D97706", neon: "rgba(245, 158, 11, 0.2)" },
           { border: "#06B6D4", text: "#ECFEFF", bg: "rgba(6, 182, 212, 0.04)", line: "#0891B2", neon: "rgba(6, 182, 212, 0.2)" },
-          { border: "#A855F7", text: "#FAF5FF", bg: "rgba(168, 85, 247, 0.04)", line: "#9333EA", neon: "rgba(168, 85, 247, 0.2)" },
+          { border: "#F97316", text: "#FFF5F0", bg: "rgba(249, 115, 22, 0.04)", line: "#EA580C", neon: "rgba(249, 115, 22, 0.2)" },
           { border: "#F43F5E", text: "#FFF1F2", bg: "rgba(244, 63, 94, 0.04)", line: "#E11D48", neon: "rgba(244, 63, 94, 0.2)" }
         ];
       }

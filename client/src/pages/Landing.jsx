@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
-import { Link } from "react-router-dom";
+// Landing page - placeholder
+import { Link, useNavigate } from "react-router-dom";
 import { motion, useScroll, useTransform, useMotionValueEvent, useSpring } from "framer-motion";
 import { ReactLenis } from 'lenis/react';
 
@@ -91,6 +92,7 @@ function Nav() {
 
 /* ─────────────── HERO ─────────────── */
 function Hero() {
+  const navigate = useNavigate();
   const { scrollY } = useScroll();
   const yText = useTransform(scrollY, [0, 800], [0, 250]);
   const opacityText = useTransform(scrollY, [0, 400], [1, 0]);
@@ -159,27 +161,25 @@ function Hero() {
 
         {/* CTAs */}
         <motion.div variants={itemVars} className="flex flex-col sm:flex-row items-center gap-3">
-          <Link to="/register">
-            <motion.button 
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              className="group flex items-center gap-3 px-7 py-4 bg-white text-black text-[15px] font-semibold rounded-full hover:bg-emerald-50 transition-colors shadow-[0_0_60px_rgba(52,211,153,0.15)]"
-            >
-              Start for free
-              <span className="w-7 h-7 rounded-full bg-black/8 flex items-center justify-center group-hover:translate-x-0.5 group-hover:-translate-y-px transition-transform duration-300">
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 10L10 2M10 2H3.5M10 2V8.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-              </span>
-            </motion.button>
-          </Link>
-          <Link to="/login">
-            <motion.button 
-              whileHover={{ backgroundColor: "rgba(255,255,255,0.06)", borderColor: "rgba(255,255,255,0.2)" }}
-              whileTap={{ scale: 0.97 }}
-              className="px-7 py-4 text-[15px] font-medium text-white/50 hover:text-white rounded-full border border-white/10 bg-white/[0.02] transition-colors"
-            >
-              Sign in →
-            </motion.button>
-          </Link>
+          <motion.button 
+            onClick={() => navigate("/register")}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            className="group flex items-center gap-3 px-7 py-4 bg-white text-black text-[15px] font-semibold rounded-full hover:bg-emerald-50 transition-colors shadow-[0_0_60px_rgba(52,211,153,0.15)]"
+          >
+            Start for free
+            <span className="w-7 h-7 rounded-full bg-black/8 flex items-center justify-center group-hover:translate-x-0.5 group-hover:-translate-y-px transition-transform duration-300">
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 10L10 2M10 2H3.5M10 2V8.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            </span>
+          </motion.button>
+          <motion.button 
+            onClick={() => navigate("/login")}
+            whileHover={{ backgroundColor: "rgba(255,255,255,0.06)", borderColor: "rgba(255,255,255,0.2)" }}
+            whileTap={{ scale: 0.97 }}
+            className="px-7 py-4 text-[15px] font-medium text-white/50 hover:text-white rounded-full border border-white/10 bg-white/[0.02] transition-colors"
+          >
+            Sign in →
+          </motion.button>
         </motion.div>
       </motion.div>
 
@@ -242,7 +242,7 @@ const features = [
     title: "SuperBrain AI Chat",
     desc: "Chat with your entire saved library. Ask follow-up questions, get step-by-step guides extracted directly from your saves.",
     span: "col-span-1 row-span-2",
-    accent: "violet",
+    accent: "orange",
   },
   {
     icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="5" r="3"/><circle cx="6" cy="19" r="3"/><circle cx="18" cy="19" r="3"/><path d="M10.5 7.5l-3 8.5M13.5 7.5l3 8.5M7.5 19h9"/></svg>,
@@ -263,7 +263,7 @@ const features = [
 const accentMap = {
   emerald: { border: "rgba(52,211,153,0.12)", glow: "rgba(52,211,153,0.06)", icon: "text-emerald-400" },
   sky: { border: "rgba(56,189,248,0.12)", glow: "rgba(56,189,248,0.06)", icon: "text-sky-400" },
-  violet: { border: "rgba(167,139,250,0.12)", glow: "rgba(167,139,250,0.06)", icon: "text-violet-400" },
+  orange: { border: "rgba(249,115,22,0.12)", glow: "rgba(249,115,22,0.06)", icon: "text-orange-400" },
   amber: { border: "rgba(251,191,36,0.12)", glow: "rgba(251,191,36,0.06)", icon: "text-amber-400" },
   rose: { border: "rgba(251,113,133,0.12)", glow: "rgba(251,113,133,0.06)", icon: "text-rose-400" },
 };
@@ -397,6 +397,7 @@ function Quote() {
 
 /* ─────────────── CTA SECTION ─────────────── */
 function CTA() {
+  const navigate = useNavigate();
   return (
     <section className="bg-[#F5F4F1] py-40 px-4">
       <RevealBlock className="max-w-5xl mx-auto">
@@ -418,18 +419,17 @@ function CTA() {
               <p className="font-body text-[15px] text-white/40 max-w-md mx-auto mb-12">
                 Paste your first Instagram URL and watch AI transform it into structured, searchable knowledge.
               </p>
-              <Link to="/register">
-                <motion.button 
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.96 }}
-                  className="group inline-flex items-center gap-3 px-8 py-4 bg-white text-black text-[15px] font-semibold rounded-full hover:bg-emerald-50 transition-colors shadow-[0_0_80px_rgba(52,211,153,0.2)]"
-                >
-                  Create your SuperBrain
-                  <span className="w-7 h-7 rounded-full bg-black/8 flex items-center justify-center group-hover:translate-x-0.5 group-hover:-translate-y-px transition-transform duration-300">
-                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 10L10 2M10 2H3.5M10 2V8.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                  </span>
-                </motion.button>
-              </Link>
+              <motion.button 
+                onClick={() => navigate("/register")}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.96 }}
+                className="group inline-flex items-center gap-3 px-8 py-4 bg-white text-black text-[15px] font-semibold rounded-full hover:bg-emerald-50 transition-colors shadow-[0_0_80px_rgba(52,211,153,0.2)]"
+              >
+                Create your SuperBrain
+                <span className="w-7 h-7 rounded-full bg-black/8 flex items-center justify-center group-hover:translate-x-0.5 group-hover:-translate-y-px transition-transform duration-300">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2 10L10 2M10 2H3.5M10 2V8.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </span>
+              </motion.button>
             </div>
           </div>
         </motion.div>

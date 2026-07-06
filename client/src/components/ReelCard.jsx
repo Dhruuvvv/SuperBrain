@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+// ReelCard component - placeholder
 import { Link } from "react-router-dom";
 import axios from "axios";
 import { supabase } from "../utils/supabaseClient";

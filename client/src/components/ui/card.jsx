@@ -1,4 +1,5 @@
 import * as React from "react"
+// UI Card component - placeholder
 
 import { cn } from "lib/utils"
 
