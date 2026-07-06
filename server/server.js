@@ -24,6 +24,22 @@ if (!fs.existsSync(thumbnailsDir)) {
 }
 app.use("/thumbnails", express.static(thumbnailsDir));
 
+// Dynamically generate cookies.txt from env var in deployment to protect credentials
+const cookiesPath = path.resolve(__dirname, "../cookies.txt");
+if (!fs.existsSync(cookiesPath) && process.env.INSTAGRAM_COOKIES) {
+    console.log("[Startup] cookies.txt not found. Generating from environment variable...");
+    try {
+        let cookiesContent = process.env.INSTAGRAM_COOKIES;
+        if (cookiesContent.startsWith("base64:")) {
+            cookiesContent = Buffer.from(cookiesContent.replace("base64:", ""), "base64").toString("utf8");
+        }
+        fs.writeFileSync(cookiesPath, cookiesContent, "utf8");
+        console.log("[Startup] cookies.txt generated successfully.");
+    } catch (err) {
+        console.error("[Startup] Failed to write cookies.txt from environment variable:", err.message);
+    }
+}
+
 // Init Supabase Admin Client using Service Key (bypass RLS)
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
