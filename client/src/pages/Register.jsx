@@ -43,27 +43,6 @@ export default function Register() {
                 return;
             }
 
-            const userId = authData.user?.id;
-
-            if (!userId) {
-                setMsg("❌ User ID not found. Try again.");
-                return;
-            }
-
-            const { error: profileError } = await supabase
-                .from("profiles")
-                .upsert({
-                    id: userId,
-                    full_name: username,
-                    username: username,
-                    email: email,
-                });
-
-            if (profileError) {
-                setMsg("❌ Profile Error: " + profileError.message);
-                return;
-            }
-
             setMsg("✅ Registration successful! Redirecting...");
             setTimeout(() => {
                 navigate("/login");
