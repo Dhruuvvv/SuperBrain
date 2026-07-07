@@ -156,3 +156,5 @@ server/public/thumbnails/*
 !client/public/SuperBrain_logo.png
 !client/public/logo192.png
 !client/public/favicon.png
+!client/public/videos
+!client/public/videos/**
