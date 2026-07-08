@@ -60,7 +60,7 @@ function Nav() {
       >
         <div className="flex items-center gap-3">
           <img src="/SuperBrain_logo.png" alt="SuperBrain Logo" className="h-11 w-auto object-contain opacity-90 hover:opacity-100 transition-opacity" />
-          <span className="font-heading text-xl text-white italic">SuperBrain</span>
+          <span className="font-heading text-xl text-white italic hidden min-[400px]:inline">SuperBrain</span>
         </div>
         <div className="flex items-center gap-2">
           <Link to="/login">
@@ -144,7 +144,7 @@ function Hero() {
         {/* Main heading */}
         <motion.h1
           variants={itemVars}
-          className="font-heading text-[clamp(3.5rem,10vw,8rem)] leading-[0.9] tracking-[-0.03em] text-white mb-6 max-w-5xl"
+          className="font-heading text-4xl sm:text-6xl md:text-7xl lg:text-8xl leading-[0.95] tracking-[-0.03em] text-white mb-6 max-w-5xl"
         >
           Your Instagram reels,
           <br />
@@ -154,7 +154,7 @@ function Hero() {
         {/* Subtitle */}
         <motion.p
           variants={itemVars}
-          className="max-w-xl text-[clamp(1rem,2.5vw,1.2rem)] text-white/40 leading-relaxed mb-12 font-body"
+          className="max-w-xl text-base sm:text-lg md:text-xl text-white/40 leading-relaxed mb-12 font-body"
         >
           SuperBrain transforms every saved reel into a searchable knowledge base. Transcripts, AI summaries, semantic search — your feed becomes your second brain.
         </motion.p>

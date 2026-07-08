@@ -52,7 +52,7 @@ export default function ReelCard({ reel, collections = [], onRefreshCollections 
             <img
               src={thumbnail_url}
               alt={title}
-              className="w-full h-auto object-cover block transition-transform duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:scale-[1.04]"
+              className="w-full h-auto object-cover block transition-transform duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] sm:group-hover:scale-[1.04]"
               loading="lazy"
             />
           </div>
@@ -71,13 +71,13 @@ export default function ReelCard({ reel, collections = [], onRefreshCollections 
         )}
 
         {/* Hover Scrim Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col justify-between p-6 pointer-events-none">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/30 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col justify-between p-6 pointer-events-none">
           <div className="flex justify-end relative z-20">
              {/* Spacer for top right save button */}
           </div>
-          <div className="text-white mt-auto transform translate-y-8 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] delay-[50ms]">
+          <div className="text-white mt-auto transform translate-y-0 opacity-100 sm:translate-y-8 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100 transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] delay-[50ms]">
             <div className="w-8 h-[2px] bg-white/30 mb-3.5 rounded-full"></div>
-            <h3 className="font-medium text-[24px] leading-[1.15] tracking-[-0.03em] text-white/95 drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)] line-clamp-3 mb-2">{title}</h3>
+            <h3 className="font-medium text-[20px] sm:text-[24px] leading-[1.15] tracking-[-0.03em] text-white/95 drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)] line-clamp-3 mb-2">{title}</h3>
             {analysis_status === "pending" && (
               <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-300">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> Processing AI
@@ -91,7 +91,7 @@ export default function ReelCard({ reel, collections = [], onRefreshCollections 
       </Link>
 
       {/* Save Button Overlay */}
-      <div className="absolute top-3 right-3 opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] z-10">
+      <div className="absolute top-3 right-3 opacity-100 scale-100 sm:opacity-0 sm:scale-95 sm:group-hover:opacity-100 sm:group-hover:scale-100 transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] z-10">
         <div className="relative">
           <Button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDropdownOpen(!dropdownOpen); }}

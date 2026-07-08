@@ -2,8 +2,10 @@ import { useState } from "react";
 import { supabase } from "../utils/supabaseClient";
 import { useNavigate, Link } from "react-router-dom";
 import { motion } from "motion/react";
-import { Brain, Github, Eye, EyeOff } from "lucide-react";
+import { Brain, Eye, EyeOff } from "lucide-react";
 import ThemeToggle from "../components/ThemeToggle";
+import { API_URL } from "../utils/api";
+import axios from "axios";
 
 export default function Register() {
     const [username, setUsername] = useState("");
@@ -26,30 +28,20 @@ export default function Register() {
         setMsg("");
 
         try {
-            const { data: authData, error: authError } = await supabase.auth.signUp({
+            const response = await axios.post(`${API_URL}/api/auth/register`, {
                 email,
                 password,
-                options: {
-                    emailRedirectTo: null,
-                    data: {
-                        full_name: username, // Fallback full_name to username
-                        username: username,
-                    }
-                }
+                username
             });
 
-            if (authError) {
-                setMsg("❌ Auth Error: " + authError.message);
-                return;
-            }
-
-            setMsg("✅ Registration successful! Redirecting...");
+            setMsg("✅ " + response.data.message);
             setTimeout(() => {
-                navigate("/login");
+                navigate(`/verify-email?email=${encodeURIComponent(email)}`, { state: { email } });
             }, 1500);
 
         } catch (err) {
-            setMsg("❌ Error: " + err.message);
+            const errMsg = err.response?.data?.error || err.message;
+            setMsg("❌ Error: " + errMsg);
         } finally {
             setLoading(false);
         }

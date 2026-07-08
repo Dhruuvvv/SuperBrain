@@ -9,6 +9,10 @@ import Users from "./pages/Users";
 import Reels from "./pages/Reels";
 import Transcripts from "./pages/Transcripts";
 import Landing from "./pages/Landing";
+import VerifyEmail from "./pages/VerifyEmail";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import AuthCallback from "./pages/AuthCallback";
 import ThemeToggle from "./components/ThemeToggle";
 import { Toaster } from "./components/ui/sonner";
 import { Brain } from "lucide-react";
@@ -158,7 +162,12 @@ function App() {
       const startTime = Date.now();
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        if (session.user.email === "admin@gmail.com" || session.user.email === "admin@superbrain.com" || session.user.email === "owner@superbrain.com") {
+        const isEmailConfirmed = session.user.email_confirmed_at || session.user.confirmed_at || !session.user.email;
+
+        if (!isEmailConfirmed) {
+          setRole("unverified");
+          setUsername(session.user.email);
+        } else if (session.user.email === "admin@gmail.com" || session.user.email === "admin@superbrain.com" || session.user.email === "owner@superbrain.com") {
           setRole("admin");
           setUsername("Admin");
         } else {
@@ -213,7 +222,13 @@ function App() {
   }
 
   const location = useLocation();
-  const isAuthPage = location.pathname === '/login' || location.pathname === '/register' || location.pathname === '/';
+  const isAuthPage = location.pathname === '/login' || 
+                     location.pathname === '/register' || 
+                     location.pathname === '/' ||
+                     location.pathname === '/verify-email' ||
+                     location.pathname === '/forgot-password' ||
+                     location.pathname === '/reset-password' ||
+                     location.pathname === '/auth/callback';
 
   if (loading) {
     return <LoadingScreen />;
@@ -300,29 +315,35 @@ function App() {
       {/* CORE ROUTES */}
       <Routes>
         {/* Public Landing */}
-        <Route path="/" element={role === "user" ? <Navigate to="/dashboard" replace /> : role === "admin" ? <Navigate to="/admin/users" replace /> : <Landing />} />
+        <Route path="/" element={role === "user" ? <Navigate to="/dashboard" replace /> : role === "admin" ? <Navigate to="/admin/users" replace /> : role === "unverified" ? <Navigate to="/verify-email" replace /> : <Landing />} />
 
-        <Route path="/login" element={<Login setRole={setRole} setUsername={setUsername} />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/login" element={role === "user" ? <Navigate to="/dashboard" replace /> : role === "admin" ? <Navigate to="/admin/users" replace /> : role === "unverified" ? <Navigate to="/verify-email" replace /> : <Login setRole={setRole} setUsername={setUsername} />} />
+        <Route path="/register" element={role === "user" ? <Navigate to="/dashboard" replace /> : role === "admin" ? <Navigate to="/admin/users" replace /> : role === "unverified" ? <Navigate to="/verify-email" replace /> : <Register />} />
         
+        {/* Verification & Password Reset Routes */}
+        <Route path="/verify-email" element={role === "user" ? <Navigate to="/dashboard" replace /> : role === "admin" ? <Navigate to="/admin/users" replace /> : <VerifyEmail />} />
+        <Route path="/forgot-password" element={role === "user" ? <Navigate to="/dashboard" replace /> : role === "admin" ? <Navigate to="/admin/users" replace /> : <ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+
         {/* Protected Dashboard & Reel Details */}
         <Route 
           path="/dashboard" 
           element={
-            role === "user" ? <Dashboard /> : role === "admin" ? <Navigate to="/admin/users" replace /> : <Navigate to="/" replace />
+            role === "user" ? <Dashboard /> : role === "admin" ? <Navigate to="/admin/users" replace /> : role === "unverified" ? <Navigate to="/verify-email" replace /> : <Navigate to="/login" replace />
           } 
         />
         <Route 
           path="/imports/:id" 
           element={
-            role === "user" ? <ReelDetail /> : <Navigate to="/" replace />
+            role === "user" ? <ReelDetail /> : role === "unverified" ? <Navigate to="/verify-email" replace /> : <Navigate to="/login" replace />
           } 
         />
 
         {/* Admin Dashboard */}
-        <Route path="/admin/users" element={<Users />} />
-        <Route path="/admin/reels" element={<Reels />} />
-        <Route path="/admin/transcripts" element={<Transcripts />} />
+        <Route path="/admin/users" element={role === "admin" ? <Users /> : <Navigate to="/login" replace />} />
+        <Route path="/admin/reels" element={role === "admin" ? <Reels /> : <Navigate to="/login" replace />} />
+        <Route path="/admin/transcripts" element={role === "admin" ? <Transcripts /> : <Navigate to="/login" replace />} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

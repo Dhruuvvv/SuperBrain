@@ -10,6 +10,8 @@ export default function Login({ setRole, setUsername }) {
     const [password, setPassword] = useState("");
     const [emailError, setEmailError] = useState("");
     const [passwordError, setPasswordError] = useState("");
+    const [generalError, setGeneralError] = useState("");
+    const [showResend, setShowResend] = useState(false);
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
 
@@ -25,6 +27,9 @@ export default function Login({ setRole, setUsername }) {
         if (e) e.preventDefault();
 
         let valid = true;
+        setGeneralError("");
+        setShowResend(false);
+
         if (!validateEmail(email)) {
             setEmailError("Please enter a valid email address.");
             valid = false;
@@ -50,7 +55,15 @@ export default function Login({ setRole, setUsername }) {
             });
 
             if (authError) {
-                alert("❌ Login Error: " + authError.message);
+                let msg = authError.message;
+                if (msg.toLowerCase().includes("email not confirmed") || msg.toLowerCase().includes("email not verified")) {
+                    setGeneralError("Your email address has not been verified yet.");
+                    setShowResend(true);
+                } else if (msg.toLowerCase().includes("invalid login credentials")) {
+                    setGeneralError("Incorrect email or password.");
+                } else {
+                    setGeneralError(msg);
+                }
                 setLoading(false);
                 return;
             }
@@ -94,7 +107,7 @@ export default function Login({ setRole, setUsername }) {
             }
 
         } catch (err) {
-            alert("Login error: " + err.message);
+            setGeneralError("Login error: " + err.message);
         } finally {
             setLoading(false);
         }
@@ -194,9 +207,14 @@ export default function Login({ setRole, setUsername }) {
                             </div>
 
                             <div>
-                                <label htmlFor="password" className="block text-sm font-medium mb-2 text-neutral-700 dark:text-neutral-300">
-                                    Password
-                                </label>
+                                <div className="flex justify-between items-center mb-2">
+                                    <label htmlFor="password" className="block text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                                        Password
+                                    </label>
+                                    <a href="/forgot-password" className="text-xs text-emerald-600 dark:text-emerald-400 hover:underline">
+                                        Forgot password?
+                                    </a>
+                                </div>
                                 <input
                                     type="password"
                                     id="password"
@@ -212,6 +230,25 @@ export default function Login({ setRole, setUsername }) {
                                     <p className="text-red-500 text-xs mt-1.5">{passwordError}</p>
                                 )}
                             </div>
+
+                            {generalError && (
+                                <div className={`text-sm p-3 rounded-xl border flex flex-col gap-2 ${
+                                    showResend 
+                                        ? "text-amber-600 dark:text-amber-400 bg-amber-500/5 border-amber-500/10" 
+                                        : "text-rose-600 dark:text-rose-400 bg-rose-500/5 border-rose-500/10"
+                                }`}>
+                                    <span>❌ {generalError}</span>
+                                    {showResend && (
+                                        <button
+                                            type="button"
+                                            onClick={() => navigate(`/verify-email?email=${encodeURIComponent(email)}`, { state: { email } })}
+                                            className="text-left font-semibold underline underline-offset-2 hover:text-amber-700 dark:hover:text-amber-300"
+                                        >
+                                            Enter verification code & verify now
+                                        </button>
+                                    )}
+                                </div>
+                            )}
 
                             <button
                                 type="submit"

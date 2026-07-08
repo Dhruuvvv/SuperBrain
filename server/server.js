@@ -9,6 +9,9 @@ const path = require("path");
 const fs = require("fs");
 const util = require("util");
 const { createClient } = require("@supabase/supabase-js");
+const rateLimit = require("express-rate-limit");
+const disposableDomains = require("disposable-email-domains");
+
 
 const execPromise = util.promisify(exec);
 const { verifyReelResources } = require("./verification_worker");
@@ -135,6 +138,137 @@ const cleanupTempFiles = (tempDir, reelId) => {
 };
 
 // --- Routes ---
+
+// Registration Rate Limiter: Max 5 attempts per hour per IP
+const registerLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 5,
+    message: { error: "Too many registration attempts from this IP, please try again after an hour." },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Verification Resend Rate Limiter: Max 1 attempt per 60 seconds per IP
+const resendLimiter = rateLimit({
+    windowMs: 60 * 1000, // 60 seconds
+    max: 1,
+    message: { error: "Please wait 60 seconds before requesting another verification email." },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Email domain and MX validation helper
+const validateEmailDomain = async (email) => {
+    if (!email || typeof email !== "string") return false;
+    const parts = email.split("@");
+    if (parts.length !== 2) return false;
+    
+    const domain = parts[1].toLowerCase().trim();
+    
+    // 1. Check against disposable-email-domains list
+    if (disposableDomains.includes(domain)) {
+        return false;
+    }
+    
+    // 2. Perform DNS MX record lookup
+    try {
+        const mxRecords = await dns.promises.resolveMx(domain);
+        if (!mxRecords || mxRecords.length === 0) {
+            return false;
+        }
+    } catch (err) {
+        // dns.resolveMx throws if no records found or domain doesn't exist
+        console.warn(`[DNS MX Check] Failed to resolve MX for domain ${domain}:`, err.message);
+        return false;
+    }
+    
+    return true;
+};
+
+// POST /api/auth/register: Rate-limited and validated user registration
+app.post("/api/auth/register", registerLimiter, async (req, res) => {
+    const { email, password, username } = req.body;
+
+    if (!email || !password || !username) {
+        return res.status(400).json({ error: "Please fill in all fields." });
+    }
+
+    // Validate email domain
+    const isDomainValid = await validateEmailDomain(email);
+    if (!isDomainValid) {
+        return res.status(400).json({ 
+            error: "Please use a permanent email address. Temporary or disposable email addresses are not allowed." 
+        });
+    }
+
+    try {
+        // Initialize an anonymous client on the server to perform sign-up
+        const anonKey = process.env.SUPABASE_ANON_KEY;
+        if (!anonKey) {
+            return res.status(500).json({ error: "Supabase configuration missing on server." });
+        }
+        const supabaseAnon = createClient(supabaseUrl, anonKey);
+        
+        const { data, error } = await supabaseAnon.auth.signUp({
+            email,
+            password,
+            options: {
+                data: {
+                    full_name: username,
+                    username: username
+                }
+            }
+        });
+
+        if (error) {
+            let msg = error.message;
+            if (error.status === 429) {
+                msg = "Rate limit exceeded. Please try again later.";
+            } else if (msg.includes("Signup requires email verification")) {
+                msg = "Please verify your email address to complete registration.";
+            }
+            return res.status(error.status || 400).json({ error: msg });
+        }
+
+        return res.json({ 
+            message: "We've sent a verification email to your inbox. Please verify your email before logging in.",
+            user: data.user,
+            session: data.session
+        });
+    } catch (err) {
+        console.error("Registration error:", err.message);
+        return res.status(500).json({ error: "Internal server error during registration." });
+    }
+});
+
+// POST /api/auth/resend-verification: Rate-limited verification email resending
+app.post("/api/auth/resend-verification", resendLimiter, async (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+        return res.status(400).json({ error: "Email is required." });
+    }
+
+    try {
+        const anonKey = process.env.SUPABASE_ANON_KEY;
+        const supabaseAnon = createClient(supabaseUrl, anonKey);
+
+        const { error } = await supabaseAnon.auth.resend({
+            type: "signup",
+            email
+        });
+
+        if (error) {
+            return res.status(error.status || 400).json({ error: error.message });
+        }
+
+        return res.json({ message: "Verification code resent successfully!" });
+    } catch (err) {
+        console.error("Resend error:", err.message);
+        return res.status(500).json({ error: "Internal server error." });
+    }
+});
+
 
 // POST /api/reels: Download, transcribe, analyze, and save to database
 app.post("/api/reels", authMiddleware, async (req, res) => {

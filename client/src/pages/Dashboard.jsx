@@ -85,6 +85,21 @@ export default function Dashboard() {
   ]);
   const [chatLoading, setChatLoading] = useState(false);
   const chatScrollRef = useRef(null);
+  const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
+
+  useEffect(() => {
+    if (!window.visualViewport) return;
+    const handleResize = () => {
+      setViewportHeight(window.visualViewport.height);
+    };
+    window.visualViewport.addEventListener("resize", handleResize);
+    window.visualViewport.addEventListener("scroll", handleResize);
+    handleResize();
+    return () => {
+      window.visualViewport.removeEventListener("resize", handleResize);
+      window.visualViewport.removeEventListener("scroll", handleResize);
+    };
+  }, []);
 
   // Collections state
   const [collections, setCollections] = useState([]);
@@ -254,12 +269,12 @@ export default function Dashboard() {
     }
   };
 
-  // Auto-scroll chat to bottom on new messages
+  // Auto-scroll chat to bottom on new messages, when chat is opened, or when keyboard opens (viewport height changes)
   useEffect(() => {
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
-  }, [chatHistory, chatLoading]);
+  }, [chatHistory, chatLoading, chatOpen, viewportHeight]);
 
   // Fetch reels from Node backend
   const fetchReels = async (page = 1, search = searchQuery) => {
@@ -437,7 +452,7 @@ export default function Dashboard() {
               <motion.button
                 whileHover={{ scale: 1.08 }}
                 whileTap={{ scale: 0.92 }}
-                className="flex items-center justify-center size-9 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-all text-[#111111] dark:text-[#F2F2F0] focus-visible:outline-none"
+                className="flex items-center justify-center size-11 sm:size-9 rounded-full hover:bg-black/5 dark:hover:bg-white/5 transition-all text-[#111111] dark:text-[#F2F2F0] focus-visible:outline-none"
                 aria-label="Open Navigation Menu"
               >
                 <ListViewIcon isActive={leftSidebarOpen} className="text-[#111111] dark:text-[#F2F2F0] scale-110" />
@@ -689,8 +704,8 @@ export default function Dashboard() {
             setIsImportOpen(open);
           }}>
             <DialogTrigger asChild>
-              <Button className="group relative rounded-full bg-[#111111] dark:bg-[#F2F2F0] text-[#FAFAF8] dark:text-[#111111] h-[38px] pl-5 pr-1 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:scale-105 active:scale-[0.96] shadow-[0_4px_12px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_12px_rgba(255,255,255,0.15)] border-none">
-                <span className="mr-3 text-[15px] tracking-wide relative z-10 font-heading italic font-normal">Import Video</span>
+              <Button className="group relative rounded-full bg-[#111111] dark:bg-[#F2F2F0] text-[#FAFAF8] dark:text-[#111111] h-11 w-11 sm:h-[38px] sm:w-auto p-0 sm:pl-5 sm:pr-1 flex items-center justify-center transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:scale-105 active:scale-[0.96] shadow-[0_4px_12px_rgba(0,0,0,0.1)] dark:shadow-[0_4px_12px_rgba(255,255,255,0.15)] border-none">
+                <span className="hidden sm:inline mr-3 text-[15px] tracking-wide relative z-10 font-heading italic font-normal">Import Video</span>
                 <div className="inline-flex items-center justify-center w-[30px] h-[30px] rounded-full bg-white/10 dark:bg-black/10 text-current transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:rotate-90">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
                 </div>
@@ -785,8 +800,8 @@ export default function Dashboard() {
 
           {/* Profile Dropdown (simplified to Avatar for now) */}
           <div className="flex items-center gap-2 cursor-pointer" onClick={handleLogout} title="Click to logout">
-            <Avatar className="h-10 w-10 border border-[#E3E3DF] dark:border-[#1A1D22]">
-              <AvatarFallback className="bg-[#F1F1EE] dark:bg-[#0E1013] text-[#111111] dark:text-[#F2F2F0] font-heading italic text-xl pt-0.5">
+            <Avatar className="h-11 w-11 sm:h-10 sm:w-10 border border-[#E3E3DF] dark:border-[#1A1D22]">
+              <AvatarFallback className="bg-[#F1F1EE] dark:bg-[#0E1013] text-[#111111] dark:text-[#F2F2F0] font-heading italic text-xl pt-0.5 flex items-center justify-center">
                 {userProfile.username[0]?.toUpperCase() || "U"}
               </AvatarFallback>
             </Avatar>
@@ -797,29 +812,26 @@ export default function Dashboard() {
       <main className="max-w-[1440px] mx-auto px-6 py-6">
 
         {/* Categories / Filter Chips */}
-        <div className="flex items-center justify-center mb-12">
-          <ScrollArea className="w-full max-w-4xl whitespace-nowrap">
-            <div className="flex items-center justify-start md:justify-center px-4 pb-4">
-              <div className="inline-flex p-1.5 bg-[#F1F1EE]/80 dark:bg-[#0E1013]/80 backdrop-blur-xl border border-black/5 dark:border-white/5 rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.03)] dark:shadow-none">
-                {tabs.map((tab) => {
-                  const isActive = activeTab === tab;
-                  return (
-                    <button
-                      key={tab}
-                      onClick={() => setActiveTab(tab)}
-                      className={`relative px-6 py-2.5 rounded-full text-[13px] font-bold tracking-wide transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.95] ${isActive
-                        ? "bg-[#111111] dark:bg-[#F2F2F0] text-[#FAFAF8] dark:text-[#111111] shadow-md"
-                        : "text-[#6B7280] dark:text-[#8B93A1] hover:text-[#111111] dark:hover:text-[#F2F2F0] hover:bg-black/5 dark:hover:bg-white/5"
-                        }`}
-                    >
-                      {tab}
-                    </button>
-                  );
-                })}
-              </div>
+        <div className="w-full max-w-4xl mx-auto mb-12 px-4">
+          <div className="w-full overflow-x-auto scrollbar-none pb-2 flex justify-start md:justify-center">
+            <div className="inline-flex p-1.5 bg-[#F1F1EE]/80 dark:bg-[#0E1013]/80 backdrop-blur-xl border border-black/5 dark:border-white/5 rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.03)] dark:shadow-none min-w-max">
+              {tabs.map((tab) => {
+                const isActive = activeTab === tab;
+                return (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`relative px-6 py-2.5 rounded-full text-[13px] font-bold tracking-wide transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.95] whitespace-nowrap ${isActive
+                      ? "bg-[#111111] dark:bg-[#F2F2F0] text-[#FAFAF8] dark:text-[#111111] shadow-md"
+                      : "text-[#6B7280] dark:text-[#8B93A1] hover:text-[#111111] dark:hover:text-[#F2F2F0] hover:bg-black/5 dark:hover:bg-white/5"
+                      }`}
+                  >
+                    {tab}
+                  </button>
+                );
+              })}
             </div>
-            <ScrollBar orientation="horizontal" className="hidden" />
-          </ScrollArea>
+          </div>
         </div>
 
         {/* Active Collection Filter Indicator */}
@@ -950,14 +962,26 @@ export default function Dashboard() {
       <Sheet open={chatOpen} onOpenChange={setChatOpen}>
         <SheetTrigger asChild>
           <Button
-            className="fixed bottom-8 right-8 z-40 rounded-full h-14 w-14 shadow-xl bg-[#FAFAF8] dark:bg-[#F2F2F0] border border-[#E3E3DF] dark:border-transparent text-[#111111] dark:text-[#111111] hover:bg-[#F1F1EE] dark:hover:bg-[#D4D4D8] transition-colors"
+            className="fixed z-40 rounded-full h-14 w-14 shadow-xl bg-[#FAFAF8] dark:bg-[#F2F2F0] border border-[#E3E3DF] dark:border-transparent text-[#111111] dark:text-[#111111] hover:bg-[#F1F1EE] dark:hover:bg-[#D4D4D8] transition-colors"
+            style={{
+              bottom: "calc(2rem + env(safe-area-inset-bottom))",
+              right: "calc(2rem + env(safe-area-inset-right))"
+            }}
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
             </svg>
           </Button>
         </SheetTrigger>
-        <SheetContent className="sm:max-w-[450px] w-full p-6 flex flex-col bg-[#FAFAF8] dark:bg-[#0A0B0D] border-l border-[#E3E3DF] dark:border-[#1A1D22]">
+        <SheetContent 
+          className="sm:max-w-[450px] w-full p-6 flex flex-col bg-[#FAFAF8] dark:bg-[#0A0B0D] border-l border-[#E3E3DF] dark:border-[#1A1D22]"
+          style={{
+            height: `${viewportHeight}px`,
+            bottom: "0px",
+            top: "auto",
+            paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))"
+          }}
+        >
           <SheetHeader>
             <div className="flex items-center justify-between py-2">
               <SheetTitle className="font-heading font-normal italic text-[28px] text-[#111111] dark:text-[#F2F2F0]">
