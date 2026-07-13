@@ -27,23 +27,27 @@ async def lifespan(app: FastAPI):
 
         # 2. Load Whisper (ASR)
         pipe = None
-        try:
-            logger.info(
-                "⏳ Loading Whisper Model (Oriserve/Whisper-Hindi2Hinglish-Prime)..."
-            )
-            pipe = pipeline(
-                "automatic-speech-recognition",
-                model="Oriserve/Whisper-Hindi2Hinglish-Prime",
-                device=device,
-                torch_dtype=torch.float16 if device == 0 else torch.float32,
-                model_kwargs={"low_cpu_mem_usage": True},
-            )
-            logger.info("✅ Whisper Model Loaded")
-        except Exception as whisper_err:
-            logger.warning(
-                f"⚠️ Could not load local Whisper model ({whisper_err}). "
-                "The server will rely on Groq Whisper API for transcription."
-            )
+        load_local = os.getenv("LOAD_LOCAL_WHISPER", "false").lower() == "true"
+        if load_local:
+            try:
+                logger.info(
+                    "⏳ Loading Whisper Model (Oriserve/Whisper-Hindi2Hinglish-Prime)..."
+                )
+                pipe = pipeline(
+                    "automatic-speech-recognition",
+                    model="Oriserve/Whisper-Hindi2Hinglish-Prime",
+                    device=device,
+                    torch_dtype=torch.float16 if device == 0 else torch.float32,
+                    model_kwargs={"low_cpu_mem_usage": True},
+                )
+                logger.info("✅ Whisper Model Loaded")
+            except Exception as whisper_err:
+                logger.warning(
+                    f"⚠️ Could not load local Whisper model ({whisper_err}). "
+                    "The server will rely on Groq Whisper API for transcription."
+                )
+        else:
+            logger.info("ℹ️ Skip loading local Whisper model (LOAD_LOCAL_WHISPER != true). Using Groq API for transcription.")
 
         app.state.pipe = pipe
 
