@@ -94,5 +94,10 @@ app.include_router(chat.router)
 app.include_router(mindmap.router)
 app.include_router(analyze.router)
 
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "SuperBrain AI Layer"}
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("ai_server.main:app", host="0.0.0.0", port=port)
