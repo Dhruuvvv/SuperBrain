@@ -23,12 +23,14 @@ class EmbedRequest(BaseModel):
 
 
 class ChatContextItem(BaseModel):
+    id: str = ""
     title: str = ""
     summary: str = ""
     instagram_url: str = ""
     author_username: str = ""
     plain_text: str = ""
     how_to_guide: Optional[Dict[str, Any]] = None
+    similarity: Optional[float] = None
 
 
 class ConversationMessage(BaseModel):

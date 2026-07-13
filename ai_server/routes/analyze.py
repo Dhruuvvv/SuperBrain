@@ -14,7 +14,7 @@ from ai_server.utils.hallucination import (
     calculate_confidence
 )
 from ai_server.services.whisper_service import run_whisper, convert_to_srt
-from ai_server.services.embedding_service import generate_embedding
+from ai_server.services.embedding_service import generate_embedding, build_structured_document
 from ai_server.services.gemini_service import (
     run_gemini_analysis,
     run_gemini_single_image,
@@ -377,8 +377,8 @@ async def analyze_reel(req: AnalyzeRequest, request: Request):
 
     # Step 5: Generate Vector Embeddings (offloaded)
     try:
-        logger.info(f"[{req.reel_id}] Generating embeddings...")
-        text_for_embedding = f"{metadata.get('title', '')} {metadata.get('summary', '')} {visual_desc_clean} {plain_text}"
+        logger.info(f"[{req.reel_id}] Generating embeddings using structured format...")
+        text_for_embedding = build_structured_document(metadata, visual_desc_clean, plain_text)
         embedding = await loop.run_in_executor(
             None, generate_embedding, embedder, text_for_embedding
         )

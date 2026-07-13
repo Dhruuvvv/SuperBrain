@@ -1020,8 +1020,8 @@ app.post("/api/chat", authMiddleware, async (req, res) => {
         // 2. Perform Vector Cosine Similarity Search in Supabase via RPC
         const { data: matchedReels, error: rpcErr } = await supabase.rpc("match_reels", {
             query_embedding: queryEmbedding,
-            match_threshold: 0.50, // Stricter threshold to get highly relevant context and avoid hallucinated citations
-            match_count: 4,
+            match_threshold: 0.15, // Lowered threshold for higher recall (audit-driven)
+            match_count: 10,       // Increased count to fetch more candidate documents
             filter_user_id: userId
         });
 
@@ -1058,12 +1058,14 @@ app.post("/api/chat", authMiddleware, async (req, res) => {
 
         // 3. Format context items for the Python LLM prompt
         const formattedContext = matchedReels.map((reel) => ({
+            id: reel.id,
             title: reel.title || "Untitled Save",
             summary: reel.summary || "",
             instagram_url: reel.instagram_url || "",
             author_username: reel.author_username || "unknown",
             plain_text: reel.plain_text || "",
-            how_to_guide: reel.how_to_guide || null
+            how_to_guide: reel.how_to_guide || null,
+            similarity: reel.similarity || 0.0
         }));
 
         // 4. Send request to Python Chat endpoint
@@ -1074,13 +1076,16 @@ app.post("/api/chat", authMiddleware, async (req, res) => {
         });
 
         // 5. Build references list for frontend citation cards
-        const references = matchedReels.map((reel) => ({
-            id: reel.id,
-            title: reel.title || "Untitled Save",
-            author_username: reel.author_username || "unknown",
-            instagram_url: reel.instagram_url,
-            similarity: reel.similarity
-        }));
+        const selectedIds = chatRes.data.selected_ids || matchedReels.map(r => r.id);
+        const references = matchedReels
+            .filter((reel) => selectedIds.includes(reel.id))
+            .map((reel) => ({
+                id: reel.id,
+                title: reel.title || "Untitled Save",
+                author_username: reel.author_username || "unknown",
+                instagram_url: reel.instagram_url,
+                similarity: reel.similarity
+            }));
 
         return res.json({
             answer: chatRes.data.answer,

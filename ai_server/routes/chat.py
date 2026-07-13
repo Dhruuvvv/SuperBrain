@@ -13,9 +13,41 @@ async def chat_with_context(req: ChatRequest, request: Request):
     if not groq_client:
         raise HTTPException(status_code=500, detail="Groq client not initialized")
 
-    # Build RAG context string from retrieved posts
+    logger.info(f"--- RAG Chat Request Initiated ---")
+    logger.info(f"Query: '{req.query}'")
+    logger.info(f"Received {len(req.context)} candidates from backend.")
+
+    # Log initial candidates
+    for i, item in enumerate(req.context):
+        logger.info(f"  [{i+1}] Title: '{item.title}' | ID: {item.id} | DB Sim Score: {item.similarity}")
+
+    # Step 1: Filter candidates based on relevance threshold (0.35)
+    threshold = 0.35
+    top_candidates = []
+    for item in req.context:
+        sim = item.similarity if item.similarity is not None else 1.0
+        if sim >= threshold:
+            top_candidates.append(item)
+
+    # Step 2: Sort by similarity descending
+    if any(item.similarity is not None for item in top_candidates):
+        top_candidates.sort(key=lambda x: x.similarity or 0.0, reverse=True)
+
+    logger.info(f"After threshold filtering (>= {threshold}), {len(top_candidates)} candidates selected.")
+    for i, item in enumerate(top_candidates):
+        logger.info(f"  Selected [{i+1}] Title: '{item.title}' | ID: {item.id} | Score: {item.similarity}")
+
+    # Step 3: Strict Fallback if no relevant posts match
+    if not top_candidates:
+        logger.info("No candidates passed threshold. Returning strict fallback response.")
+        return {
+            "answer": "I couldn't find any relevant saved reels.",
+            "selected_ids": []
+        }
+
+    # Build RAG context string from selected posts
     context_str = ""
-    for idx, item in enumerate(req.context):
+    for idx, item in enumerate(top_candidates):
         context_str += f"=== Save [{idx + 1}] ===\n"
         context_str += f"Title: {item.title}\n"
         context_str += f"Author: @{item.author_username}\n"
@@ -52,17 +84,11 @@ async def chat_with_context(req: ChatRequest, request: Request):
         messages.append({"role": turn.role, "content": turn.content})
 
     # The final user message includes the fresh RAG context
-    if context_str:
-        user_content = (
-            f"Here is context from my saved posts that is relevant to your question:\n\n"
-            f"{context_str}\n"
-            f"My question: {req.query}"
-        )
-    else:
-        user_content = (
-            f"(No saved posts match this query.)\n\n"
-            f"My question: {req.query}"
-        )
+    user_content = (
+        f"Here is context from my saved posts that is relevant to your question:\n\n"
+        f"{context_str}\n"
+        f"My question: {req.query}"
+    )
 
     messages.append({"role": "user", "content": user_content})
 
@@ -79,7 +105,9 @@ async def chat_with_context(req: ChatRequest, request: Request):
             )
         )
         answer = completion.choices[0].message.content
-        return {"answer": answer}
+        selected_ids = [item.id for item in top_candidates if item.id]
+        logger.info(f"LLM Answer generated successfully. Selected Source IDs: {selected_ids}")
+        return {"answer": answer, "selected_ids": selected_ids}
     except Exception as e:
         logger.error(f"Groq chat completion failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
