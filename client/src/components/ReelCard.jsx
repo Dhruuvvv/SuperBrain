@@ -63,43 +63,43 @@ export default function ReelCard({ reel, collections = [], onRefreshCollections 
         )}
         {/* Persistent Overlays */}
         {content_type && (
-          <div className="absolute top-3 left-3 z-20 pointer-events-none transition-opacity duration-300 group-hover:opacity-0">
-            <div className="bg-white/90 backdrop-blur-md border border-black/5 rounded-full px-3 py-1 shadow-sm flex items-center justify-center">
-              <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-black/90 leading-none pt-[1px]">{content_type}</span>
+          <div className="absolute top-2 left-2 sm:top-3 sm:left-3 z-20 pointer-events-none transition-opacity duration-300 group-hover:opacity-0">
+            <div className="bg-white/90 backdrop-blur-md border border-black/5 rounded-full px-2 sm:px-3 py-0.5 sm:py-1 shadow-sm flex items-center justify-center">
+              <span className="text-[8px] sm:text-[10px] font-bold tracking-[0.12em] sm:tracking-[0.15em] uppercase text-black/90 leading-none pt-[1px]">{content_type}</span>
             </div>
           </div>
         )}
 
         {/* Hover Scrim Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/30 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col justify-between p-6 pointer-events-none">
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/20 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] flex flex-col justify-between p-3 sm:p-6 pointer-events-none">
           <div className="flex justify-end relative z-20">
              {/* Spacer for top right save button */}
           </div>
           <div className="text-white mt-auto transform translate-y-0 opacity-100 sm:translate-y-8 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100 transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] delay-[50ms]">
-            <div className="w-8 h-[2px] bg-white/30 mb-3.5 rounded-full"></div>
-            <h3 className="font-medium text-[20px] sm:text-[24px] leading-[1.15] tracking-[-0.03em] text-white/95 drop-shadow-[0_2px_12px_rgba(0,0,0,0.8)] line-clamp-3 mb-2">{title}</h3>
+            <div className="w-6 h-[1.5px] sm:w-8 sm:h-[2px] bg-white/30 mb-2 sm:mb-3.5 rounded-full"></div>
+            <h3 className="font-medium text-[13px] sm:text-[20px] md:text-[24px] leading-[1.2] tracking-[-0.02em] sm:tracking-[-0.03em] text-white/95 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] line-clamp-3 mb-1.5 sm:mb-2">{title}</h3>
             {analysis_status === "pending" && (
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-300">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span> Processing AI
+              <span className="inline-flex items-center gap-1 sm:gap-1.5 text-[9px] sm:text-[11px] font-bold uppercase tracking-wider text-amber-300">
+                <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-amber-400 animate-pulse"></span> Processing
               </span>
             )}
             {analysis_status === "failed" && (
-              <span className="text-[11px] font-bold uppercase tracking-wider text-rose-400">Analysis Failed</span>
+              <span className="text-[9px] sm:text-[11px] font-bold uppercase tracking-wider text-rose-400">Failed</span>
             )}
           </div>
         </div>
       </Link>
 
       {/* Save Button Overlay */}
-      <div className="absolute top-3 right-3 opacity-100 scale-100 sm:opacity-0 sm:scale-95 sm:group-hover:opacity-100 sm:group-hover:scale-100 transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] z-10">
+      <div className="absolute top-2 right-2 sm:top-3 sm:right-3 opacity-100 scale-100 sm:opacity-0 sm:scale-95 sm:group-hover:opacity-100 sm:group-hover:scale-100 transition-all duration-700 ease-[cubic-bezier(0.32,0.72,0,1)] z-10">
         <div className="relative">
           <Button
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDropdownOpen(!dropdownOpen); }}
-            className="group/btn rounded-full bg-[#111111]/95 dark:bg-[#F2F2F0]/95 backdrop-blur-md text-[#FAFAF8] dark:text-[#111111] font-bold h-8 pl-3.5 pr-1 shadow-xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:scale-[1.05] active:scale-[0.95] flex items-center gap-2"
+            className="group/btn rounded-full bg-[#111111]/95 dark:bg-[#F2F2F0]/95 backdrop-blur-md text-[#FAFAF8] dark:text-[#111111] font-bold h-7 sm:h-8 pl-2.5 sm:pl-3.5 pr-1 shadow-xl transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:scale-[1.05] active:scale-[0.95] flex items-center gap-1.5 sm:gap-2"
           >
-            <span className="text-[11px] tracking-wide">Save</span>
-            <div className="w-6 h-6 rounded-full bg-white/20 dark:bg-black/10 flex items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover/btn:scale-110">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
+            <span className="text-[9px] sm:text-[11px] tracking-wide">Save</span>
+            <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-white/20 dark:bg-black/10 flex items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover/btn:scale-110">
+              <svg className="w-2.5 h-2.5 sm:w-3 sm:h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
             </div>
           </Button>
 

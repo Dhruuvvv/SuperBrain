@@ -809,20 +809,47 @@ export default function Dashboard() {
         </div>
       </nav>
 
-      <main className="max-w-[1440px] mx-auto px-6 py-6">
+      <main className="max-w-[1440px] mx-auto px-4 sm:px-6 py-4 sm:py-6">
+
+        {/* Mobile Search - Only visible on small screens */}
+        <div className="md:hidden w-full max-w-4xl mx-auto mb-4 px-2">
+          <FaviconSearch
+            placeholder="Search saves, tools, transcripts..."
+            value={searchQuery}
+            onChange={(val) => {
+              setSearchQuery(val);
+              if (val.trim() === "") {
+                setLastSearchedQuery("");
+                setReels([]);
+                fetchReels(1, "");
+              }
+            }}
+            onSearch={(val) => {
+              setReels([]);
+              setLastSearchedQuery(val);
+              fetchReels(1, val);
+            }}
+            className="w-full"
+            inputClassName="w-full h-11 bg-[#F1F1EE] dark:bg-[#0E1013] border border-[#E3E3DF] dark:border-[#1A1D22] rounded-full focus-visible:ring-2 focus-visible:ring-[#111111] dark:focus-visible:ring-[#F2F2F0] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FAFAF8] dark:focus-visible:ring-offset-[#0A0B0D] text-[#111111] dark:text-[#F2F2F0] placeholder:text-[#6B7280] dark:placeholder:text-[#8B93A1] text-xs"
+          />
+        </div>
 
         {/* Categories / Filter Chips */}
-        <div className="w-full max-w-4xl mx-auto mb-12 px-4">
-          <div className="w-full overflow-x-auto scrollbar-none pb-2 flex justify-start md:justify-center">
-            <div className="inline-flex p-1.5 bg-[#F1F1EE]/80 dark:bg-[#0E1013]/80 backdrop-blur-xl border border-black/5 dark:border-white/5 rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.03)] dark:shadow-none min-w-max">
+        <div className="relative w-full max-w-4xl mx-auto mb-6 sm:mb-12 px-2 sm:px-4">
+          {/* Subtle gradient fades on left & right for mobile scroll indication */}
+          <div className="absolute left-2 top-0.5 bottom-0.5 w-10 bg-gradient-to-r from-[#FAFAF8] via-[#FAFAF8]/50 to-transparent dark:from-[#0A0B0D] dark:via-[#0A0B0D]/50 pointer-events-none z-10 md:hidden" />
+          <div className="absolute right-2 top-0.5 bottom-0.5 w-10 bg-gradient-to-l from-[#FAFAF8] via-[#FAFAF8]/50 to-transparent dark:from-[#0A0B0D] dark:via-[#0A0B0D]/50 pointer-events-none z-10 md:hidden" />
+
+          <div className="w-full overflow-x-auto scrollbar-none pb-2 flex justify-start md:justify-center scroll-smooth">
+            <div className="inline-flex p-1 bg-[#F1F1EE]/80 dark:bg-[#0E1013]/80 backdrop-blur-xl border border-black/5 dark:border-white/5 rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.03)] dark:shadow-none min-w-max">
               {tabs.map((tab) => {
                 const isActive = activeTab === tab;
                 return (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
-                    className={`relative px-6 py-2.5 rounded-full text-[13px] font-bold tracking-wide transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.95] whitespace-nowrap ${isActive
-                      ? "bg-[#111111] dark:bg-[#F2F2F0] text-[#FAFAF8] dark:text-[#111111] shadow-md"
+                    className={`relative px-4 sm:px-6 py-2.5 rounded-full text-[11px] sm:text-[13px] font-bold tracking-wide transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] active:scale-[0.95] whitespace-nowrap ${isActive
+                      ? "bg-[#111111] dark:bg-[#F2F2F0] text-[#FAFAF8] dark:text-[#111111] shadow-md scale-105"
                       : "text-[#6B7280] dark:text-[#8B93A1] hover:text-[#111111] dark:hover:text-[#F2F2F0] hover:bg-black/5 dark:hover:bg-white/5"
                       }`}
                   >
@@ -892,13 +919,13 @@ export default function Dashboard() {
 
         {/* Grid Area */}
         {loading && currentPage === 1 ? (
-          <div className="columns-1 sm:columns-2 md:columns-3 lg:columns-4 lg:columns-5 xl:columns-6 gap-4 [column-fill:balance]">
-            {["h-[280px]", "h-[380px]", "h-[320px]", "h-[260px]", "h-[420px]", "h-[290px]", "h-[360px]", "h-[310px]", "h-[270px]", "h-[390px]", "h-[330px]", "h-[280px]"].map((hClass, idx) => (
+          <div className="columns-2 sm:columns-2 md:columns-3 lg:columns-4 lg:columns-5 xl:columns-6 gap-3 sm:gap-4 [column-fill:balance]">
+            {["h-[180px] sm:h-[280px]", "h-[240px] sm:h-[380px]", "h-[200px] sm:h-[320px]", "h-[160px] sm:h-[260px]", "h-[260px] sm:h-[420px]", "h-[190px] sm:h-[290px]", "h-[220px] sm:h-[360px]", "h-[190px] sm:h-[310px]", "h-[170px] sm:h-[270px]", "h-[240px] sm:h-[390px]", "h-[210px] sm:h-[330px]", "h-[180px] sm:h-[280px]"].map((hClass, idx) => (
               <div
                 key={idx}
-                className={`break-inside-avoid mb-4 w-full rounded-[1.5rem] overflow-hidden border border-black/5 dark:border-white/5 bg-[#F1F1EE] dark:bg-[#0E1013] ${hClass} relative animate-pulse`}
+                className={`break-inside-avoid mb-3 sm:mb-4 w-full rounded-[1rem] sm:rounded-[1.5rem] overflow-hidden border border-black/5 dark:border-white/5 bg-[#F1F1EE] dark:bg-[#0E1013] ${hClass} relative animate-pulse`}
               >
-                <div className="absolute top-4 left-4 w-16 h-6 rounded-full bg-black/[0.05] dark:bg-white/[0.05]"></div>
+                <div className="absolute top-3 left-3 sm:top-4 sm:left-4 w-12 sm:w-16 h-4 sm:h-6 rounded-full bg-black/[0.05] dark:bg-white/[0.05]"></div>
               </div>
             ))}
           </div>
@@ -920,7 +947,7 @@ export default function Dashboard() {
         ) : (
           <motion.div
             layout
-            className="columns-1 sm:columns-2 md:columns-3 lg:columns-4 lg:columns-5 xl:columns-6 gap-4 [column-fill:balance]"
+            className="columns-2 sm:columns-2 md:columns-3 lg:columns-4 lg:columns-5 xl:columns-6 gap-3 sm:gap-4 [column-fill:balance]"
           >
             <AnimatePresence mode="popLayout">
               {filteredReels.map((reel) => (
@@ -936,7 +963,7 @@ export default function Dashboard() {
                     scale: { duration: 0.3, ease: "easeOut" },
                     y: { type: "spring", stiffness: 300, damping: 28 }
                   }}
-                  className="break-inside-avoid mb-4"
+                  className="break-inside-avoid mb-3 sm:mb-4"
                 >
                   <ReelCard
                     reel={reel}

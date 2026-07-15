@@ -409,21 +409,22 @@ export default function ReelDetail() {
       <div className="pointer-events-none fixed top-[-20%] left-1/2 -translate-x-1/2 w-[80vw] h-[80vh] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-black/[0.03] via-transparent to-transparent dark:from-white/[0.06] rounded-full blur-[100px] z-0" />
 
       {/* Detail Header / Nav bar - Floating Glass Pill */}
-      <header className="sticky top-6 z-50 mx-auto max-w-7xl px-6 flex items-center justify-between transition-colors duration-500">
-        <div className="flex items-center gap-4 bg-white/70 dark:bg-[#111111]/70 backdrop-blur-3xl px-5 py-3 rounded-full border border-black/5 dark:border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)]">
+      <header className="sticky top-3 sm:top-6 z-50 mx-auto max-w-7xl px-3 sm:px-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-0 transition-all duration-500">
+        <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-2.5 sm:gap-4 bg-white/70 dark:bg-[#111111]/70 backdrop-blur-3xl px-4 sm:px-5 py-2.5 sm:py-3 rounded-full border border-black/5 dark:border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)]">
           <Link
             to="/dashboard"
-            className="group flex items-center gap-2 text-[10px] uppercase tracking-[0.1em] font-medium text-black/50 hover:text-black dark:text-white/50 dark:hover:text-white transition-colors"
+            className="group flex items-center gap-1.5 sm:gap-2 text-[10px] uppercase tracking-[0.1em] font-medium text-black/50 hover:text-black dark:text-white/50 dark:hover:text-white transition-colors"
           >
-            <span className="group-hover:-translate-x-1 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]">←</span> BACK TO DASHBOARD
+            <span className="group-hover:-translate-x-1 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]">←</span>
+            <span>BACK TO DASHBOARD</span>
           </Link>
           <div className="h-4 w-px bg-black/10 dark:bg-white/10" />
-          <span className="text-[10px] uppercase tracking-wider font-mono text-black/30 dark:text-white/30 truncate max-w-[150px] md:max-w-xs">
+          <span className="text-[10px] uppercase tracking-wider font-mono text-black/30 dark:text-white/30 truncate max-w-[120px] sm:max-w-[150px] md:max-w-xs">
             ID: {reel.id.split('-')[0]}
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5 bg-white/70 dark:bg-[#111111]/70 backdrop-blur-3xl p-1.5 rounded-full border border-black/5 dark:border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] no-print">
+        <div className="w-full sm:w-auto flex items-center justify-center sm:justify-end gap-1.5 bg-white/70 dark:bg-[#111111]/70 backdrop-blur-3xl p-1.5 sm:p-1.5 rounded-full border border-black/5 dark:border-white/10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] no-print">
           <ThemeToggle />
 
           <TooltipProvider delayDuration={0}>
@@ -521,15 +522,15 @@ export default function ReelDetail() {
       </header>
 
       {/* Main Grid: Asymmetric Split */}
-      <div className="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-44 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-20 items-start">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 pt-16 sm:pt-24 pb-24 sm:pb-44 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-20 items-start">
 
         {/* LEFT COLUMN (Media Info Panel) - Sticky */}
         <section className="lg:col-span-5 relative group z-10 lg:sticky lg:top-32">
           {/* Double-Bezel Architecture */}
-          <div className="p-2 rounded-[2.5rem] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 backdrop-blur-2xl transition-shadow duration-700 hover:shadow-[0_40px_100px_-20px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_40px_100px_-20px_rgba(255,255,255,0.05)]">
-            <div className="relative bg-[#FAFAF8] dark:bg-[#080808] rounded-[2rem] p-6 sm:p-8 border border-white dark:border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] h-full flex flex-col gap-8">
+          <div className="p-1 sm:p-2 rounded-[1.5rem] sm:rounded-[2.5rem] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 backdrop-blur-2xl transition-shadow duration-700 hover:shadow-[0_40px_100px_-20px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_40px_100px_-20px_rgba(255,255,255,0.05)]">
+            <div className="relative bg-[#FAFAF8] dark:bg-[#080808] rounded-[1.2rem] sm:rounded-[2rem] p-4 sm:p-8 border border-white dark:border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] h-full flex flex-col gap-5 sm:gap-8">
 
-              <div className="relative aspect-[4/5] w-full bg-black/5 dark:bg-[#111111] overflow-hidden rounded-[1.5rem] shadow-inner">
+              <div className="relative aspect-[4/5] w-full bg-black/5 dark:bg-[#111111] overflow-hidden rounded-[1rem] sm:rounded-[1.5rem] shadow-inner">
                 {reel.thumbnail_url ? (
                   <img
                     src={reel.thumbnail_url}
@@ -670,18 +671,18 @@ export default function ReelDetail() {
         </section>
 
         {/* RIGHT COLUMN (Content Narrative) */}
-        <section className="lg:col-span-7 space-y-16 pt-4 lg:pt-0">
+        <section className="lg:col-span-7 space-y-8 sm:space-y-16 pt-4 lg:pt-0">
 
           {/* Title Area */}
-          <div className="space-y-6">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-black/5 dark:bg-white/10 border border-black/5 dark:border-white/10 text-[10px] uppercase tracking-[0.2em] font-medium text-black/60 dark:text-white/60">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-black/5 dark:bg-white/10 border border-black/5 dark:border-white/10 text-[9px] sm:text-[10px] uppercase tracking-[0.2em] font-medium text-black/60 dark:text-white/60">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)] animate-pulse" />
               Analysis Complete
             </div>
-            <h1 className="text-4xl md:text-5xl lg:text-[3.5rem] font-normal tracking-[-0.03em] text-[#111111] dark:text-[#F2F2F0] leading-[1.1]">
+            <h1 className="text-2xl sm:text-4xl md:text-5xl lg:text-[3.5rem] font-normal tracking-[-0.03em] text-[#111111] dark:text-[#F2F2F0] leading-[1.1]">
               {metadata.title || "Untitled AI Import"}
             </h1>
-            <p className="text-[11px] font-mono uppercase tracking-widest text-black/40 dark:text-white/40">
+            <p className="text-[10px] sm:text-[11px] font-mono uppercase tracking-widest text-black/40 dark:text-white/40">
               Analyzed on {reel.analyzed_at ? new Date(reel.analyzed_at).toLocaleString() : "Pending"}
             </p>
           </div>
@@ -759,48 +760,48 @@ export default function ReelDetail() {
             /* STATIC MODE */
             <>
               {/* Executive Summary */}
-              <div className="p-1.5 rounded-[2rem] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 backdrop-blur-xl">
-                <div className="bg-[#FAFAF8] dark:bg-[#080808] rounded-[1.6rem] p-8 sm:p-10 border border-white dark:border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]">
-                  <h3 className="text-[10px] font-medium uppercase tracking-[0.2em] text-black/40 dark:text-white/40 flex items-center gap-2 mb-6">
+              <div className="p-1 sm:p-1.5 rounded-[1.2rem] sm:rounded-[2rem] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 backdrop-blur-xl">
+                <div className="bg-[#FAFAF8] dark:bg-[#080808] rounded-[1rem] sm:rounded-[1.6rem] p-4 sm:p-10 border border-white dark:border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]">
+                  <h3 className="text-[9px] sm:text-[10px] font-medium uppercase tracking-[0.2em] text-black/40 dark:text-white/40 flex items-center gap-2 mb-4 sm:mb-6">
                     <span className="w-4 h-px bg-black/20 dark:bg-white/20" /> Executive Summary
                   </h3>
-                  <p className="text-[15px] leading-[1.8] text-black/80 dark:text-[#F2F2F0]/80">
+                  <p className="text-[13px] sm:text-[15px] leading-[1.7] sm:leading-[1.8] text-black/80 dark:text-[#F2F2F0]/80">
                     {metadata.summary || "Summary details are currently unavailable."}
                   </p>
                 </div>
               </div>
 
               {/* Key Takeaways */}
-              <div className="pl-4 sm:pl-8 border-l border-black/10 dark:border-white/10 py-2">
-                <h3 className="text-[10px] font-medium uppercase tracking-[0.2em] text-black/40 dark:text-white/40 mb-6">
+              <div className="pl-4 sm:pl-8 border-l border-black/10 dark:border-white/10 py-1 sm:py-2">
+                <h3 className="text-[9px] sm:text-[10px] font-medium uppercase tracking-[0.2em] text-black/40 dark:text-white/40 mb-4 sm:mb-6">
                   Key Takeaways
                 </h3>
                 {keyTakeaways.length > 0 ? (
-                  <ul className="space-y-5">
+                  <ul className="space-y-4 sm:space-y-5">
                     {keyTakeaways.map((takeaway, idx) => (
-                      <li key={idx} className="flex gap-4 text-[14px] text-black/80 dark:text-[#F2F2F0]/80 leading-[1.7] items-start">
-                        <span className="text-black/30 dark:text-white/30 font-mono text-[10px] pt-1">0{idx + 1}</span>
+                      <li key={idx} className="flex gap-3 sm:gap-4 text-[13px] sm:text-[14px] text-black/80 dark:text-[#F2F2F0]/80 leading-[1.6] sm:leading-[1.7] items-start">
+                        <span className="text-black/30 dark:text-white/30 font-mono text-[9px] sm:text-[10px] pt-0.5 sm:pt-1">0{idx + 1}</span>
                         <span>{takeaway}</span>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-[13px] text-black/40 dark:text-white/40">No takeaways generated.</p>
+                  <p className="text-[12px] sm:text-[13px] text-black/40 dark:text-white/40">No takeaways generated.</p>
                 )}
               </div>
 
               {/* Personal Notes */}
-              <div className="p-1.5 rounded-[2rem] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 backdrop-blur-xl">
-                <div className="bg-[#FAFAF8] dark:bg-[#080808] rounded-[1.6rem] p-8 sm:p-10 border border-white dark:border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]">
-                  <h3 className="text-[10px] font-medium uppercase tracking-[0.2em] text-black/40 dark:text-white/40 flex items-center gap-2 mb-6">
+              <div className="p-1 sm:p-1.5 rounded-[1.2rem] sm:rounded-[2rem] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 backdrop-blur-xl">
+                <div className="bg-[#FAFAF8] dark:bg-[#080808] rounded-[1rem] sm:rounded-[1.6rem] p-4 sm:p-10 border border-white dark:border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]">
+                  <h3 className="text-[9px] sm:text-[10px] font-medium uppercase tracking-[0.2em] text-black/40 dark:text-white/40 flex items-center gap-2 mb-4 sm:mb-6">
                     <span className="w-4 h-px bg-black/20 dark:bg-white/20" /> Personal Curation Notes
                   </h3>
                   {metadata.notes ? (
-                    <p className="text-[14px] leading-[1.8] text-black/80 dark:text-[#F2F2F0]/80 whitespace-pre-wrap">
+                    <p className="text-[13px] sm:text-[14px] leading-[1.7] sm:leading-[1.8] text-black/80 dark:text-[#F2F2F0]/80 whitespace-pre-wrap">
                       {metadata.notes}
                     </p>
                   ) : (
-                    <p className="text-[13px] text-black/40 dark:text-white/40 italic">
+                    <p className="text-[12px] sm:text-[13px] text-black/40 dark:text-white/40 italic">
                       No personal notes added yet. Click "Edit Curation" in the top bar to add your annotations.
                     </p>
                   )}
@@ -808,29 +809,29 @@ export default function ReelDetail() {
               </div>
 
               {/* Mentioned tools and clickable links */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
 
                 {/* Mentioned Tools */}
-                <div className="p-1.5 rounded-[2rem] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 backdrop-blur-xl">
-                  <div className="bg-[#FAFAF8] dark:bg-[#080808] rounded-[1.6rem] p-6 border border-white dark:border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] h-full">
-                    <h3 className="text-[10px] font-medium uppercase tracking-[0.2em] text-black/40 dark:text-white/40 mb-5">Mentioned Tools</h3>
+                <div className="p-1 sm:p-1.5 rounded-[1.2rem] sm:rounded-[2rem] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 backdrop-blur-xl">
+                  <div className="bg-[#FAFAF8] dark:bg-[#080808] rounded-[1rem] sm:rounded-[1.6rem] p-4 sm:p-6 border border-white dark:border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] h-full">
+                    <h3 className="text-[9px] sm:text-[10px] font-medium uppercase tracking-[0.2em] text-black/40 dark:text-white/40 mb-4 sm:mb-5">Mentioned Tools</h3>
                     {tools.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2">
                         {tools.map((tool, idx) => (
-                          <span key={idx} className="text-[11px] font-mono uppercase tracking-wider text-black/70 dark:text-white/70 bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 px-3 py-1.5 rounded-full">
+                          <span key={idx} className="text-[10px] sm:text-[11px] font-mono uppercase tracking-wider text-black/70 dark:text-white/70 bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/10 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full">
                             {tool}
                           </span>
                         ))}
                       </div>
                     ) : (
-                      <p className="text-[13px] text-black/40 dark:text-white/40">No tool brands detected.</p>
+                      <p className="text-[12px] sm:text-[13px] text-black/40 dark:text-white/40">No tool brands detected.</p>
                     )}
                   </div>
                 </div>
 
                 {/* Extracted Resources */}
-                <div className="p-1.5 rounded-[2rem] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 backdrop-blur-xl">
-                  <div className="bg-[#FAFAF8] dark:bg-[#080808] rounded-[1.6rem] p-6 border border-white dark:border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] h-full">
+                <div className="p-1 sm:p-1.5 rounded-[1.2rem] sm:rounded-[2rem] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 backdrop-blur-xl">
+                  <div className="bg-[#FAFAF8] dark:bg-[#080808] rounded-[1rem] sm:rounded-[1.6rem] p-4 sm:p-6 border border-white dark:border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] h-full">
                     <h3 className="text-[10px] font-medium uppercase tracking-[0.2em] text-black/40 dark:text-white/40 mb-5 flex items-center justify-between">
                       <span>Extracted Resources</span>
                       <span className="text-[9px] text-black/30 dark:text-white/30 tracking-widest">LAYER</span>
@@ -989,18 +990,18 @@ export default function ReelDetail() {
 
               {/* Practical How-To Guide */}
               {metadata.how_to_guide && (
-                <div className="p-1.5 rounded-[2rem] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 backdrop-blur-xl">
-                  <div className="bg-[#FAFAF8] dark:bg-[#080808] rounded-[1.6rem] border border-white dark:border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] p-8 sm:p-10 transition-colors duration-500">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] uppercase tracking-[0.2em] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 mb-6">
+                <div className="p-1 sm:p-1.5 rounded-[1.2rem] sm:rounded-[2rem] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 backdrop-blur-xl">
+                  <div className="bg-[#FAFAF8] dark:bg-[#080808] rounded-[1rem] sm:rounded-[1.6rem] border border-white dark:border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] p-4 sm:p-10 transition-colors duration-500">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[8px] sm:text-[9px] uppercase tracking-[0.2em] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 mb-4 sm:mb-6">
                       📋 Step-by-Step Guide
                     </span>
 
-                    <h3 className="text-xl sm:text-2xl font-heading font-normal italic text-[#111111] dark:text-[#F2F2F0] leading-tight mb-6">
+                    <h3 className="text-lg sm:text-2xl font-heading font-normal italic text-[#111111] dark:text-[#F2F2F0] leading-tight mb-4 sm:mb-6">
                       {metadata.how_to_guide.how_to_title || "How-To Stepwise Guide"}
                     </h3>
 
                     {metadata.how_to_guide.materials_needed && metadata.how_to_guide.materials_needed.length > 0 && (
-                      <div className="flex flex-wrap gap-2 items-center text-xs pb-6 border-b border-black/5 dark:border-white/5 mb-8">
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2 items-center text-xs pb-4 sm:pb-6 border-b border-black/5 dark:border-white/5 mb-6 sm:mb-8">
                         <span className="text-[10px] uppercase tracking-wider font-mono text-black/40 dark:text-white/40 mr-1">Prerequisites:</span>
                         {metadata.how_to_guide.materials_needed.map((item, idx) => (
                           <span key={idx} className="px-2.5 py-1 rounded-full text-[11px] font-mono bg-black/[0.03] dark:bg-white/[0.04] text-black/60 dark:text-white/60 border border-black/5 dark:border-white/5">
@@ -1057,23 +1058,23 @@ export default function ReelDetail() {
 
               {/* Collapsible Visual Description */}
               {metadata.visual_description && (
-                <div className="p-1.5 rounded-[2rem] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 backdrop-blur-xl">
-                  <div className="bg-[#FAFAF8] dark:bg-[#080808] rounded-[1.6rem] border border-white dark:border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] overflow-hidden transition-all duration-500">
+                <div className="p-1 sm:p-1.5 rounded-[1.2rem] sm:rounded-[2rem] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 backdrop-blur-xl">
+                  <div className="bg-[#FAFAF8] dark:bg-[#080808] rounded-[1rem] sm:rounded-[1.6rem] border border-white dark:border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] overflow-hidden transition-all duration-500">
                     <button
                       onClick={() => setVisualOpen(!visualOpen)}
-                      className="w-full flex items-center justify-between hover:bg-black/5 dark:hover:bg-white/5 px-8 py-6 text-left transition-colors"
+                      className="w-full flex items-center justify-between hover:bg-black/5 dark:hover:bg-white/5 px-4 sm:px-8 py-4 sm:py-6 text-left transition-colors"
                     >
-                      <h3 className="text-[10px] font-medium uppercase tracking-[0.2em] text-black/60 dark:text-white/60 flex items-center gap-2">
-                        <span className="w-4 h-px bg-black/20 dark:bg-white/20" /> Visual Cues & Scene Details
+                      <h3 className="text-[9px] sm:text-[10px] font-medium uppercase tracking-[0.2em] text-black/60 dark:text-white/60 flex items-center gap-2">
+                        <span className="w-4 h-px bg-black/20 dark:bg-white/20" /> Visual Details
                       </h3>
-                      <span className="text-[10px] uppercase tracking-widest text-black/40 dark:text-white/40 font-mono">
+                      <span className="text-[9px] sm:text-[10px] uppercase tracking-widest text-black/40 dark:text-white/40 font-mono">
                         {visualOpen ? "HIDE [-]" : "SHOW [+]"}
                       </span>
                     </button>
 
                     {visualOpen && (
-                      <div className="px-8 pb-8 pt-2 space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
-                        <p className="text-[14px] leading-[1.8] text-black/70 dark:text-white/70 whitespace-pre-line font-mono bg-black/5 dark:bg-white/5 p-6 rounded-2xl border border-black/5 dark:border-white/10 transition-colors duration-500">
+                      <div className="px-4 sm:px-8 pb-6 sm:pb-8 pt-2 space-y-4 sm:space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                        <p className="text-[13px] sm:text-[14px] leading-[1.7] sm:leading-[1.8] text-black/70 dark:text-white/70 whitespace-pre-line font-mono bg-black/5 dark:bg-white/5 p-4 sm:p-6 rounded-[1rem] sm:rounded-2xl border border-black/5 dark:border-white/10 transition-colors duration-500">
                           {metadata.visual_description}
                         </p>
                       </div>
@@ -1083,29 +1084,29 @@ export default function ReelDetail() {
               )}
 
               {/* Collapsible Transcript */}
-              <div id="transcript-section" className="p-1.5 rounded-[2rem] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 backdrop-blur-xl">
-                <div className="bg-[#FAFAF8] dark:bg-[#080808] rounded-[1.6rem] border border-white dark:border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] overflow-hidden transition-all duration-500">
+              <div id="transcript-section" className="p-1 sm:p-1.5 rounded-[1.2rem] sm:rounded-[2rem] bg-black/[0.02] dark:bg-white/[0.02] border border-black/5 dark:border-white/5 backdrop-blur-xl">
+                <div className="bg-[#FAFAF8] dark:bg-[#080808] rounded-[1rem] sm:rounded-[1.6rem] border border-white dark:border-white/5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.6)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)] overflow-hidden transition-all duration-500">
                   <button
                     onClick={() => setTranscriptOpen(!transcriptOpen)}
-                    className="w-full flex items-center justify-between hover:bg-black/5 dark:hover:bg-white/5 px-8 py-6 text-left transition-colors"
+                    className="w-full flex items-center justify-between hover:bg-black/5 dark:hover:bg-white/5 px-4 sm:px-8 py-4 sm:py-6 text-left transition-colors"
                   >
-                    <h3 className="text-[10px] font-medium uppercase tracking-[0.2em] text-black/60 dark:text-white/60 flex items-center gap-2">
-                      <span className="w-4 h-px bg-black/20 dark:bg-white/20" /> Full Audio Transcript
+                    <h3 className="text-[9px] sm:text-[10px] font-medium uppercase tracking-[0.2em] text-black/60 dark:text-white/60 flex items-center gap-2">
+                      <span className="w-4 h-px bg-black/20 dark:bg-white/20" /> Audio Transcript
                     </h3>
-                    <span className="text-[10px] uppercase tracking-widest text-black/40 dark:text-white/40 font-mono">
+                    <span className="text-[9px] sm:text-[10px] uppercase tracking-widest text-black/40 dark:text-white/40 font-mono">
                       {transcriptOpen ? "HIDE [-]" : "SHOW [+]"}
                     </span>
                   </button>
 
                   {transcriptOpen && (
-                    <div className="px-8 pb-8 pt-2 space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
-                      <div className="flex items-center gap-4 text-[9px] uppercase tracking-widest text-black/40 dark:text-white/40 border-t border-black/5 dark:border-white/5 pt-6">
+                    <div className="px-4 sm:px-8 pb-6 sm:pb-8 pt-2 space-y-4 sm:space-y-6 animate-in fade-in slide-in-from-top-4 duration-500">
+                      <div className="flex items-center gap-3 sm:gap-4 text-[8px] sm:text-[9px] uppercase tracking-widest text-black/40 dark:text-white/40 border-t border-black/5 dark:border-white/5 pt-4 sm:pt-6">
                         <span>Language: {metadata.language_detected || "hinglish"}</span>
                         <span className="w-1 h-1 rounded-full bg-black/20 dark:bg-white/20" />
                         <span>Status: {transcript.transcription_status || "completed"}</span>
                       </div>
 
-                      <p className="text-[14px] leading-[2] text-black/80 dark:text-[#F2F2F0] whitespace-pre-wrap font-sans">
+                      <p className="text-[13px] sm:text-[14px] leading-[1.8] sm:leading-[2] text-black/80 dark:text-[#F2F2F0] whitespace-pre-wrap font-sans">
                         {transcript.plain_text || "No speech detected in the audio track of this import."}
                       </p>
                     </div>

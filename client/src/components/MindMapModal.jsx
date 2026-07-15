@@ -24,6 +24,110 @@ export default function MindMapModal({ isOpen, onClose, reelId, reelData, onMind
   const [dragging, setDragging] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const containerRef = useRef(null);
+  const touchStartDist = useRef(null);
+  const touchStartZoom = useRef(null);
+
+  // Sync refs to avoid re-binding raw listeners on state changes
+  const panRef = useRef(pan);
+  const zoomRef = useRef(zoom);
+  const draggingRef = useRef(dragging);
+
+  useEffect(() => {
+    panRef.current = pan;
+  }, [pan]);
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+  }, [zoom]);
+
+  useEffect(() => {
+    draggingRef.current = dragging;
+  }, [dragging]);
+
+  // Prevent default scroll/pinch actions on the canvas container on touch screens
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handlePreventDefault = (e) => {
+      // Allow default events on control buttons and select inputs
+      if (e.target.closest("button") || e.target.closest("select") || e.target.closest("a")) {
+        return;
+      }
+      if (e.cancelable) {
+        e.preventDefault();
+      }
+    };
+
+    container.addEventListener("touchstart", handlePreventDefault, { passive: false });
+    container.addEventListener("touchmove", handlePreventDefault, { passive: false });
+    container.addEventListener("wheel", handlePreventDefault, { passive: false });
+
+    // Raw touch handlers with passive: false to allow preventing page scrolling
+    const onTouchStartRaw = (e) => {
+      if (e.target.closest("button") || e.target.closest("select") || e.target.closest("a")) {
+        return;
+      }
+      if (e.touches.length === 1) {
+        setDragging(true);
+        const touch = e.touches[0];
+        dragStart.current = { x: touch.clientX - panRef.current.x, y: touch.clientY - panRef.current.y };
+        touchStartDist.current = null;
+      } else if (e.touches.length === 2) {
+        setDragging(false);
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        touchStartDist.current = Math.sqrt(dx * dx + dy * dy);
+        touchStartZoom.current = zoomRef.current;
+      }
+    };
+
+    const onTouchMoveRaw = (e) => {
+      if (e.target.closest("button") || e.target.closest("select") || e.target.closest("a")) {
+        return;
+      }
+      
+      if (e.touches.length === 1 && draggingRef.current) {
+        if (e.cancelable) e.preventDefault();
+        const touch = e.touches[0];
+        setPan({
+          x: touch.clientX - dragStart.current.x,
+          y: touch.clientY - dragStart.current.y
+        });
+      } else if (e.touches.length === 2 && touchStartDist.current !== null) {
+        if (e.cancelable) e.preventDefault();
+        const dx = e.touches[0].clientX - e.touches[1].clientX;
+        const dy = e.touches[0].clientY - e.touches[1].clientY;
+        const currentDist = Math.sqrt(dx * dx + dy * dy);
+        if (touchStartDist.current > 0) {
+          const factor = currentDist / touchStartDist.current;
+          let newZoom = touchStartZoom.current * factor;
+          newZoom = Math.max(0.2, Math.min(newZoom, 3.0));
+          setZoom(newZoom);
+        }
+      }
+    };
+
+    const onTouchEndRaw = () => {
+      setDragging(false);
+      touchStartDist.current = null;
+    };
+
+    container.addEventListener("touchstart", onTouchStartRaw, { passive: false });
+    container.addEventListener("touchmove", onTouchMoveRaw, { passive: false });
+    container.addEventListener("touchend", onTouchEndRaw, { passive: false });
+    container.addEventListener("touchcancel", onTouchEndRaw, { passive: false });
+
+    return () => {
+      container.removeEventListener("touchstart", handlePreventDefault);
+      container.removeEventListener("touchmove", handlePreventDefault);
+      container.removeEventListener("wheel", handlePreventDefault);
+      container.removeEventListener("touchstart", onTouchStartRaw);
+      container.removeEventListener("touchmove", onTouchMoveRaw);
+      container.removeEventListener("touchend", onTouchEndRaw);
+      container.removeEventListener("touchcancel", onTouchEndRaw);
+    };
+  }, [isOpen]);
 
   // Styling Themes: "dark" (glass), "neon", "light"
   const [theme, setTheme] = useState(() => {
@@ -196,6 +300,47 @@ export default function MindMapModal({ isOpen, onClose, reelId, reelData, onMind
 
   const handleMouseUpOrLeave = () => {
     setDragging(false);
+  };
+
+  // Touch event handlers for dragging/panning and pinch-to-zoom
+  const handleTouchStart = (e) => {
+    if (e.touches.length === 1) {
+      setDragging(true);
+      const touch = e.touches[0];
+      dragStart.current = { x: touch.clientX - pan.x, y: touch.clientY - pan.y };
+      touchStartDist.current = null;
+    } else if (e.touches.length === 2) {
+      setDragging(false);
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      touchStartDist.current = Math.sqrt(dx * dx + dy * dy);
+      touchStartZoom.current = zoom;
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (e.touches.length === 1 && dragging) {
+      const touch = e.touches[0];
+      setPan({
+        x: touch.clientX - dragStart.current.x,
+        y: touch.clientY - dragStart.current.y
+      });
+    } else if (e.touches.length === 2 && touchStartDist.current !== null) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const currentDist = Math.sqrt(dx * dx + dy * dy);
+      if (touchStartDist.current > 0) {
+        const factor = currentDist / touchStartDist.current;
+        let newZoom = touchStartZoom.current * factor;
+        newZoom = Math.max(0.2, Math.min(newZoom, 3.0));
+        setZoom(newZoom);
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setDragging(false);
+    touchStartDist.current = null;
   };
 
   const handleWheel = (e) => {
