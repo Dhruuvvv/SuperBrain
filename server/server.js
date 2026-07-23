@@ -22,11 +22,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Ensure temp directory exists
+// Ensure temp directory exists and serve it statically for remote AI Server (Railway) access
 const tempDir = path.join(__dirname, "temp");
 if (!fs.existsSync(tempDir)) {
     fs.mkdirSync(tempDir, { recursive: true });
 }
+app.use("/temp", express.static(tempDir));
 
 // Ensure thumbnails directory exists and serve it statically
 const thumbnailsDir = path.join(__dirname, "public", "thumbnails");
@@ -549,7 +550,24 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
             }
         }
 
-        console.log(`[${reelId}] Media ready. Content mode: ${contentMode}. Calling Python AI Server...`);
+        console.log(`[${reelId}] Media ready. Content mode: ${contentMode}. Preparing payload for Python AI Server...`);
+
+        // Verify media existence immediately before making request
+        const audioExists = audioPath ? fs.existsSync(audioPath) : false;
+        const videoExists = videoPath ? fs.existsSync(videoPath) : false;
+        const audioSizeKb = audioExists ? (fs.statSync(audioPath).size / 1024).toFixed(1) : "N/A";
+        const videoSizeKb = videoExists ? (fs.statSync(videoPath).size / 1024).toFixed(1) : "N/A";
+
+        console.log(`[${reelId}] Pre-AI Request Verification:`);
+        console.log(`  Audio File Exists: ${audioExists ? `✓ YES (${audioSizeKb} KB)` : "❌ NO"} (${audioPath || 'none'})`);
+        console.log(`  Video File Exists: ${videoExists ? `✓ YES (${videoSizeKb} KB)` : "❌ NO"} (${videoPath || 'none'})`);
+
+        // Convert local filesystem paths to accessible HTTP URLs for remote AI Server (Railway)
+        const getMediaUrl = (localPath) => {
+            if (!localPath || !fs.existsSync(localPath)) return "";
+            const fileName = path.basename(localPath);
+            return `${hostUrl}/temp/${fileName}`;
+        };
 
         // Build payload based on content mode
         const aiPayload = {
@@ -558,11 +576,13 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
             caption_urls: captionUrls,
             content_mode: contentMode,
             // Video fields (empty for image types)
-            audio_path: contentMode === "video" ? audioPath : "",
-            video_path: contentMode === "video" ? videoPath : "",
+            audio_path: contentMode === "video" ? getMediaUrl(audioPath) : "",
+            video_path: contentMode === "video" ? getMediaUrl(videoPath) : "",
             // Image fields (empty for video type)
-            image_paths: imagePaths,
+            image_paths: (imagePaths || []).map(p => getMediaUrl(p)),
         };
+
+        console.log(`[${reelId}] Exact AI Payload sent to ${pythonServiceUrl}/analyze_reel:\n`, JSON.stringify(aiPayload, null, 2));
 
         let aiResponse;
         let aiErrorMsg = null;

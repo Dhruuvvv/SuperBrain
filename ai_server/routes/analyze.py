@@ -26,7 +26,31 @@ from ai_server.services.groq_service import (
     generate_how_to_guide
 )
 
+import tempfile
+import urllib.request
+
 router = APIRouter()
+
+def download_media_if_url(url_or_path: str, suffix: str = ".media") -> str:
+    """If url_or_path is an HTTP/HTTPS URL, download to local /tmp/ file and return local path."""
+    if not url_or_path or not isinstance(url_or_path, str):
+        return ""
+    if url_or_path.startswith("http://") or url_or_path.startswith("https://"):
+        try:
+            logger.info(f"Downloading remote media from URL: {url_or_path}")
+            req = urllib.request.Request(url_or_path, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = resp.read()
+            ext = os.path.splitext(urlparse(url_or_path).path)[1] or suffix
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+            temp_file.write(data)
+            temp_file.close()
+            logger.info(f"Downloaded remote media ({len(data)} bytes) to local path: {temp_file.name}")
+            return temp_file.name
+        except Exception as e:
+            logger.error(f"Failed to download remote media from URL {url_or_path}: {e}")
+            return ""
+    return url_or_path
 
 @router.post("/analyze_reel")
 async def analyze_reel(req: AnalyzeRequest, request: Request):
@@ -42,6 +66,12 @@ async def analyze_reel(req: AnalyzeRequest, request: Request):
     """
     pipeline_start = time.time()
     logger.info(f"[{req.reel_id}] Pipeline initiated. Mode: {req.content_mode}. Bypass Cache: {req.bypass_cache}")
+    logger.info(f"[{req.reel_id}] Received paths/URLs - audio: '{req.audio_path}', video: '{req.video_path}', images: {len(req.image_paths)}")
+
+    # Resolve remote URLs to local temp files if needed
+    resolved_audio_path = download_media_if_url(req.audio_path, suffix=".wav")
+    resolved_video_path = download_media_if_url(req.video_path, suffix=".mp4")
+    resolved_image_paths = [download_media_if_url(p, suffix=".jpg") for p in req.image_paths if p]
 
     # Check cache first (unless bypassed)
     if not req.bypass_cache:
@@ -75,11 +105,11 @@ async def analyze_reel(req: AnalyzeRequest, request: Request):
     # Step 1 & 2: Parallel execution based on content mode
     if req.content_mode == "single_image":
         logger.info(f"[{req.reel_id}] Single image mode — running Gemini Analysis")
-        if not req.image_paths:
+        if not resolved_image_paths:
             raise HTTPException(status_code=400, detail="image_paths is required for single_image mode")
         
         gemini_res = await loop.run_in_executor(
-            None, run_gemini_single_image, req.image_paths[0], gemini_client
+            None, run_gemini_single_image, resolved_image_paths[0], gemini_client
         )
         visual_desc_clean = gemini_res.get("visual_description", "")
         gemini_urls = gemini_res.get("urls_found", [])
@@ -92,11 +122,11 @@ async def analyze_reel(req: AnalyzeRequest, request: Request):
 
     elif req.content_mode == "image_carousel":
         logger.info(f"[{req.reel_id}] Image carousel mode — running Gemini Analysis")
-        if not req.image_paths:
+        if not resolved_image_paths:
             raise HTTPException(status_code=400, detail="image_paths is required for image_carousel mode")
             
         gemini_res = await loop.run_in_executor(
-            None, run_gemini_image_carousel, req.image_paths, gemini_client
+            None, run_gemini_image_carousel, resolved_image_paths, gemini_client
         )
         visual_desc_clean = gemini_res.get("visual_description", "")
         gemini_urls = gemini_res.get("urls_found", [])
@@ -113,12 +143,13 @@ async def analyze_reel(req: AnalyzeRequest, request: Request):
         
         # Audio handling (allow silent videos)
         whisper_future = None
-        if req.audio_path and os.path.exists(req.audio_path):
-            whisper_future = loop.run_in_executor(None, run_whisper, req.audio_path, groq_client, pipe)
+        if resolved_audio_path and os.path.exists(resolved_audio_path):
+            logger.info(f"[{req.reel_id}] Valid audio path resolved: {resolved_audio_path} ({os.path.getsize(resolved_audio_path)} bytes)")
+            whisper_future = loop.run_in_executor(None, run_whisper, resolved_audio_path, groq_client, pipe)
         else:
             logger.info(f"[{req.reel_id}] No valid audio path provided. Assuming silent video.")
 
-        gemini_future = loop.run_in_executor(None, run_gemini_analysis, req.video_path, gemini_client)
+        gemini_future = loop.run_in_executor(None, run_gemini_analysis, resolved_video_path, gemini_client)
 
         gemini_res = {
             "urls_found": [],
