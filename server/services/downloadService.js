@@ -19,15 +19,56 @@ function escapeShellArg(arg) {
     }
 }
 
+// Locate or auto-download the most up-to-date yt-dlp binary available
+async function getYtDlpBinary() {
+    const exeName = isWindows ? "yt-dlp.exe" : "yt-dlp";
+    // Check server directory first (server/yt-dlp.exe or server/yt-dlp)
+    const serverExePath = path.resolve(__dirname, "../", exeName);
+    if (fs.existsSync(serverExePath)) {
+        return serverExePath;
+    }
+    // Check root project directory
+    const rootExePath = path.resolve(__dirname, "../../", exeName);
+    if (fs.existsSync(rootExePath)) {
+        return rootExePath;
+    }
+
+    // On Linux/macOS, if local binary doesn't exist, download it automatically
+    if (!isWindows) {
+        console.log(`[downloadService] Linux yt-dlp binary not found. Downloading latest Linux release to ${serverExePath}...`);
+        try {
+            const url = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp";
+            const response = await axios({
+                method: "get",
+                url: url,
+                responseType: "arraybuffer",
+                maxRedirects: 5,
+                timeout: 45000
+            });
+            fs.writeFileSync(serverExePath, Buffer.from(response.data));
+            fs.chmodSync(serverExePath, "755");
+            console.log(`[downloadService] Linux yt-dlp binary ready at ${serverExePath}`);
+            return serverExePath;
+        } catch (err) {
+            console.error(`[downloadService] Warning: Auto-download of Linux yt-dlp binary failed:`, err.message);
+        }
+    }
+
+    // Fallback to system command name
+    return exeName;
+}
+
+// Get configured yt-dlp-exec runner
+async function getYtDlpRunner() {
+    const binPath = await getYtDlpBinary();
+    if (fs.existsSync(binPath)) {
+        return execYtDlp.create(binPath);
+    }
+    return execYtDlp;
+}
+
 function validateCookiesPath(cookiesPath) {
     const exists = cookiesPath && fs.existsSync(cookiesPath);
-    if (!exists) {
-        console.warn(
-            `[downloadService] Cookies file not found at: ${cookiesPath}\n` +
-            `[downloadService] Proceeding without cookies. Private Instagram accounts may fail to download.\n` +
-            `[downloadService] To enable private account access, deploy cookies.txt to project root.`
-        );
-    }
     return cookiesPath && exists ? cookiesPath : null;
 }
 
@@ -66,6 +107,7 @@ function getCookiesFlags(cookiesPath) {
  * Fetch Instagram metadata via yt-dlp-exec with fallback to resolved CLI
  */
 async function fetchMetadata(cleanUrl, cookiesPath) {
+    const runner = await getYtDlpRunner();
     const options = {
         dumpSingleJson: true,
         skipDownload: true,
@@ -74,42 +116,30 @@ async function fetchMetadata(cleanUrl, cookiesPath) {
     };
 
     try {
-        const metadata = await execYtDlp(cleanUrl, options);
+        const metadata = await runner(cleanUrl, options);
         if (typeof metadata === "string") {
             return JSON.parse(metadata);
         }
         return metadata;
     } catch (err) {
-        console.error("[downloadService] fetchMetadata yt-dlp-exec error structure:", {
-            name: err.name,
-            message: err.message,
-            code: err.code,
-            keys: Object.keys(err || {}).slice(0, 10)
-        });
+        console.error("[downloadService] fetchMetadata yt-dlp-exec error:", err.message || err);
 
-        // Fallback: try direct CLI invocation if yt-dlp-exec wrapper encounters issue
+        // Fallback: try direct CLI invocation with resolved binary
         try {
             const validCookies = validateCookiesPath(cookiesPath);
             const cookiesFlag = validCookies ? `--cookies "${validCookies}"` : "";
-            const exeName = isWindows ? "yt-dlp.exe" : "yt-dlp";
-            const localExePath = path.resolve(__dirname, "../../", exeName);
-            const cmdBin = fs.existsSync(localExePath) ? `"${localExePath}"` : (isWindows ? "yt-dlp.exe" : "yt-dlp");
+            const binPath = await getYtDlpBinary();
+            const cmdBin = fs.existsSync(binPath) ? `"${binPath}"` : binPath;
             const metaCmd = `${cmdBin} --dump-single-json --skip-download --ignore-no-formats-error ${cookiesFlag} ${escapeShellArg(cleanUrl)}`;
             const { stdout } = await execPromise(metaCmd);
             return JSON.parse(stdout);
         } catch (cliErr) {
-            console.error("[downloadService] fetchMetadata CLI fallback error structure:", {
-                name: cliErr.name,
-                message: cliErr.message,
-                code: cliErr.code,
-                keys: Object.keys(cliErr || {}).slice(0, 10),
-                stderr: cliErr.stderr ? cliErr.stderr.substring(0, 200) : undefined
-            });
+            console.error("[downloadService] fetchMetadata CLI fallback error:", cliErr.stderr || cliErr.message || cliErr);
             throw new PipelineError(
                 "Failed to extract Instagram post metadata. The post might be private, deleted, or require updated login cookies.",
                 "METADATA_FETCH",
                 400,
-                cliErr.message || err.message
+                cliErr.stderr || cliErr.message || err.message
             );
         }
     }
@@ -119,8 +149,9 @@ async function fetchMetadata(cleanUrl, cookiesPath) {
  * Download Video MP4
  */
 async function downloadVideo(cleanUrl, videoOutputTemplate, tempDir, reelId, cookiesPath) {
+    const runner = await getYtDlpRunner();
     const options = {
-        format: "best[ext=mp4]/best",
+        format: "best[ext=mp4]/best/b",
         noPlaylist: true,
         mergeOutputFormat: "mp4",
         output: videoOutputTemplate,
@@ -128,37 +159,27 @@ async function downloadVideo(cleanUrl, videoOutputTemplate, tempDir, reelId, coo
     };
 
     try {
-        await execYtDlp(cleanUrl, options);
+        await runner(cleanUrl, options);
     } catch (err) {
-        console.error("[downloadService] downloadVideo yt-dlp-exec error structure:", {
-            name: err.name,
-            message: err.message,
-            code: err.code,
-            keys: Object.keys(err || {}).slice(0, 10)
-        });
+        console.error("[downloadService] downloadVideo runner error:", err.message || err);
 
-        // Fallback to CLI execution if yt-dlp-exec encounters issue
+        // Fallback to CLI execution if runner encounters issue
         try {
             const validCookies = validateCookiesPath(cookiesPath);
             const cookiesFlag = validCookies ? `--cookies "${validCookies}"` : "";
-            const exeName = isWindows ? "yt-dlp.exe" : "yt-dlp";
-            const localExePath = path.resolve(__dirname, "../../", exeName);
-            const cmdBin = fs.existsSync(localExePath) ? `"${localExePath}"` : (isWindows ? "yt-dlp.exe" : "yt-dlp");
-            const downloadVideoCmd = `${cmdBin} -f "best[ext=mp4]/best" --no-playlist --merge-output-format mp4 -o "${videoOutputTemplate}" ${cookiesFlag} ${escapeShellArg(cleanUrl)}`;
+            const binPath = await getYtDlpBinary();
+            const cmdBin = fs.existsSync(binPath) ? `"${binPath}"` : binPath;
+            const downloadVideoCmd = `${cmdBin} -f "best[ext=mp4]/best/b" --no-playlist --merge-output-format mp4 -o "${videoOutputTemplate}" ${cookiesFlag} ${escapeShellArg(cleanUrl)}`;
             await execPromise(downloadVideoCmd);
         } catch (cliErr) {
-            console.error("[downloadService] downloadVideo CLI fallback error structure:", {
-                name: cliErr.name,
-                message: cliErr.message,
-                code: cliErr.code,
-                keys: Object.keys(cliErr || {}).slice(0, 10),
-                stderr: cliErr.stderr ? cliErr.stderr.substring(0, 200) : undefined
-            });
+            console.error("[downloadService] downloadVideo CLI fallback error:", cliErr.stderr || cliErr.message || cliErr);
+            const rawErrStr = cliErr.stderr || cliErr.message || err.message || "Video download failed.";
+            const cleanErrMsg = rawErrStr.includes("ERROR:") ? rawErrStr.split("ERROR:")[1].trim().split("\n")[0] : rawErrStr;
             throw new PipelineError(
-                "Video download failed.",
+                cleanErrMsg,
                 "VIDEO_DOWNLOAD",
-                500,
-                cliErr.message || err.message
+                400,
+                rawErrStr
             );
         }
     }
@@ -346,6 +367,7 @@ async function downloadImages(cleanUrl, tempDir, reelId, cookiesPath, instaMeta,
  * Download audio for legacy endpoint using yt-dlp-exec
  */
 async function downloadAudioLegacy(cleanUrl, audioPath, cookiesPath) {
+    const runner = await getYtDlpRunner();
     const options = {
         extractAudio: true,
         audioFormat: "wav",
@@ -354,33 +376,21 @@ async function downloadAudioLegacy(cleanUrl, audioPath, cookiesPath) {
     };
 
     try {
-        await execYtDlp(cleanUrl, options);
+        await runner(cleanUrl, options);
     } catch (err) {
-        console.error("[downloadService] downloadAudioLegacy yt-dlp-exec error structure:", {
-            name: err.name,
-            message: err.message,
-            code: err.code,
-            keys: Object.keys(err || {}).slice(0, 10)
-        });
+        console.error("[downloadService] downloadAudioLegacy runner error:", err.message || err);
 
         // Fallback to CLI
         try {
             const validCookies = validateCookiesPath(cookiesPath);
             const cookiesFlag = validCookies ? `--cookies "${validCookies}"` : "";
-            const exeName = isWindows ? "yt-dlp.exe" : "yt-dlp";
-            const localExePath = path.resolve(__dirname, "../../", exeName);
-            const cmdBin = fs.existsSync(localExePath) ? `"${localExePath}"` : (isWindows ? "yt-dlp.exe" : "yt-dlp");
+            const binPath = await getYtDlpBinary();
+            const cmdBin = fs.existsSync(binPath) ? `"${binPath}"` : binPath;
             const downloadCmd = `${cmdBin} -x --audio-format wav -o "${audioPath}" ${cookiesFlag} ${escapeShellArg(cleanUrl)}`;
             await execPromise(downloadCmd);
         } catch (cliErr) {
-            console.error("[downloadService] downloadAudioLegacy CLI fallback error structure:", {
-                name: cliErr.name,
-                message: cliErr.message,
-                code: cliErr.code,
-                keys: Object.keys(cliErr || {}).slice(0, 10),
-                stderr: cliErr.stderr ? cliErr.stderr.substring(0, 200) : undefined
-            });
-            throw new PipelineError("Audio download failed for legacy transcription endpoint.", "AUDIO_DOWNLOAD", 500, cliErr.message || err.message);
+            console.error("[downloadService] downloadAudioLegacy CLI fallback error:", cliErr.stderr || cliErr.message || cliErr);
+            throw new PipelineError("Audio download failed for legacy transcription endpoint.", "AUDIO_DOWNLOAD", 500, cliErr.stderr || cliErr.message);
         }
     }
 
@@ -393,6 +403,7 @@ async function downloadAudioLegacy(cleanUrl, audioPath, cookiesPath) {
 module.exports = {
     PipelineError,
     isCommandAvailable,
+    getYtDlpBinary,
     fetchMetadata,
     downloadVideo,
     extractAudio,

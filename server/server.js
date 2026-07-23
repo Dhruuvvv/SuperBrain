@@ -453,8 +453,11 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
                     contentMode = "single_image";
                 } else {
                     // For Reels or non-image content, propagate the ACTUAL video download failure
+                    const errMsg = (dlErr.message && dlErr.message.toLowerCase().includes("video download failed"))
+                        ? dlErr.message
+                        : `Video download failed: ${dlErr.message || "Unable to download Instagram video."}`;
                     throw new PipelineError(
-                        `Video download failed: ${dlErr.message || "Unable to download Instagram video."}`,
+                        errMsg,
                         "VIDEO_DOWNLOAD",
                         400,
                         dlErr.details || dlErr.message
