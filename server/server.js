@@ -15,10 +15,18 @@ const disposableDomains = require("disposable-email-domains");
 
 const execPromise = util.promisify(exec);
 const { verifyReelResources } = require("./verification_worker");
+const downloadService = require("./services/downloadService");
+const { PipelineError } = downloadService;
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Ensure temp directory exists
+const tempDir = path.join(__dirname, "temp");
+if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true });
+}
 
 // Ensure thumbnails directory exists and serve it statically
 const thumbnailsDir = path.join(__dirname, "public", "thumbnails");
@@ -41,6 +49,18 @@ if (!fs.existsSync(cookiesPath) && process.env.INSTAGRAM_COOKIES) {
     } catch (err) {
         console.error("[Startup] Failed to write cookies.txt from environment variable:", err.message);
     }
+}
+
+// Validate cookies.txt on startup
+const cookiesExists = fs.existsSync(cookiesPath);
+if (!cookiesExists) {
+    console.warn(
+        `⚠️  WARNING: Cookies file not found at ${cookiesPath}\n` +
+        `   Private Instagram accounts may not be downloadable.\n` +
+        `   Place cookies.txt at project root to enable private account access.`
+    );
+} else {
+    console.log(`✓ Cookies file found at ${cookiesPath}`);
 }
 
 // Init Supabase Admin Client using Service Key (bypass RLS)
@@ -118,20 +138,23 @@ const authMiddleware = async (req, res, next) => {
     }
 };
 
-// Helper to clean up all temporary files matching a reelId
-const cleanupTempFiles = (tempDir, reelId) => {
-    if (!fs.existsSync(tempDir) || !reelId) return;
+// Helper to clean up all temporary files matching a reelId (null-safe and defensive)
+const cleanupTempFiles = (targetTempDir, reelId) => {
+    const dir = targetTempDir || tempDir;
+    if (!dir || typeof dir !== "string" || !reelId) return;
     try {
-        const files = fs.readdirSync(tempDir);
-        files.forEach(file => {
-            if (file.includes(reelId)) {
-                const filePath = path.join(tempDir, file);
-                if (fs.existsSync(filePath)) {
-                    fs.unlinkSync(filePath);
+        if (fs.existsSync(dir)) {
+            const files = fs.readdirSync(dir);
+            files.forEach(file => {
+                if (file.includes(reelId)) {
+                    const filePath = path.join(dir, file);
+                    if (fs.existsSync(filePath)) {
+                        try { fs.unlinkSync(filePath); } catch (_) {}
+                    }
                 }
-            }
-        });
-        console.log(`[${reelId}] Cleaned up all temp files.`);
+            });
+            console.log(`[${reelId}] Cleaned up all temp files.`);
+        }
     } catch (err) {
         console.warn(`[${reelId}] Failed to clean up temp files:`, err.message);
     }
@@ -333,28 +356,17 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
         if (reelError) throw new Error("Failed to create reel record: " + reelError.message);
 
         reelId = reelData.id;
-        const tempDir = path.join(__dirname, "temp");
         audioPath = path.join(tempDir, `audio_${reelId}.wav`);
         videoPath = path.join(tempDir, `video_${reelId}.mp4`);
 
-        // Ensure temp directory exists
-        if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true });
-        }
-        
-        const cookiesPath = path.resolve(__dirname, "../cookies.txt");
-        const cookiesFlag = fs.existsSync(cookiesPath) ? `--cookies "${cookiesPath}"` : "";
-
-        // Fetch metadata using yt-dlp (dump-single-json guarantees a single JSON object even for playlists)
+        // Fetch metadata via downloadService
         console.log(`[${reelId}] Fetching metadata...`);
-        const metaCmd = `yt-dlp.exe --dump-single-json --skip-download --ignore-no-formats-error ${cookiesFlag} "${cleanUrl}"`;
         let instaMeta = {};
         
         try {
-            const { stdout: metaStdout } = await execPromise(metaCmd);
-            instaMeta = JSON.parse(metaStdout);
+            instaMeta = await downloadService.fetchMetadata(cleanUrl, cookiesPath);
         } catch (metaErr) {
-            console.warn(`[${reelId}] Metadata fetch failed (non-critical):`, metaErr.message);
+            console.warn(`[${reelId}] Metadata fetch notice:`, metaErr.message);
         }
 
         const authorUsername = (instaMeta.channel || instaMeta.uploader || null)?.replace(/^@/, '') || null;
@@ -377,7 +389,7 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
 
         // Check if yt-dlp explicitly failed to find media (empty playlist)
         if (instaMeta._type === 'playlist' && (!instaMeta.entries || instaMeta.entries.length === 0)) {
-             throw new Error("yt-dlp failed to extract media from this Instagram post. The post might be an unsupported carousel layout or require login cookies.");
+             throw new PipelineError("Failed to extract media from this Instagram post. The post might be an unsupported carousel layout or require login cookies.", "MEDIA_EXTRACTION", 400);
         }
 
         // Extract URLs from caption using regex
@@ -396,7 +408,6 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
 
         // Use metadata to detect content type
         const mediaExt = instaMeta.ext || "";
-        const mediaType = instaMeta._type || "single";
         const entries = instaMeta.entries || null; // present for playlists/carousels
 
         let contentMode = "video"; // "video" | "single_image" | "image_carousel"
@@ -413,7 +424,6 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
             contentMode = "single_image";
             console.log(`[${reelId}] Detected: Single photo`);
         } else {
-            // Fallback: try video download, if fails assume image
             contentMode = "video";
             console.log(`[${reelId}] Type unclear — defaulting to video attempt`);
         }
@@ -421,51 +431,26 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
         // --- DOWNLOAD based on detected type ---
 
         if (contentMode === "video") {
-            // Download video
             console.log(`[${reelId}] Downloading video...`);
-            // yt-dlp might ignore the .mp4 extension in -o if it merges to .mkv or .webm,
-            // so we force output format and look for the actual file
             const videoOutputTemplate = path.join(tempDir, `video_${reelId}.%(ext)s`);
-            const downloadVideoCmd = `yt-dlp.exe -f "best[ext=mp4]/best" --no-playlist --merge-output-format mp4 -o "${videoOutputTemplate}" ${cookiesFlag} "${cleanUrl}"`;
             
             try {
-                await execPromise(downloadVideoCmd);
-                
-                // Find actual downloaded video file
-                const tempFiles = fs.readdirSync(tempDir);
-                const downloadedVideo = tempFiles.find(f => f.startsWith(`video_${reelId}.`));
-                if (downloadedVideo) {
-                    videoPath = path.join(tempDir, downloadedVideo);
-                    console.log(`[${reelId}] Video downloaded successfully: ${videoPath}`);
-                } else {
-                     throw new Error("Video downloaded but file not found in temp directory.");
-                }
+                videoPath = await downloadService.downloadVideo(cleanUrl, videoOutputTemplate, tempDir, reelId, cookiesPath);
+                console.log(`[${reelId}] Video downloaded successfully: ${videoPath}`);
             } catch (dlErr) {
-                // Video download failed — might actually be an image post
-                // Try as image
                 console.warn(`[${reelId}] Video download failed, trying as image...`, dlErr.message);
                 contentMode = "single_image";
             }
 
-            // If still video mode, extract audio & thumbnail frame
             if (contentMode === "video" && fs.existsSync(videoPath)) {
-                // Extract audio
                 console.log(`[${reelId}] Extracting audio using ffmpeg...`);
-                const extractAudioCmd = `ffmpeg -i "${videoPath}" -vn -ar 16000 -ac 1 -y "${audioPath}"`;
-                try {
-                    await execPromise(extractAudioCmd);
-                } catch (ffmpegErr) {
-                    console.warn(`[${reelId}] Audio extraction failed (maybe silent video). Error ignored.`, ffmpegErr.message);
-                    audioPath = ""; // Send empty to Python so it treats it as silent
-                }
+                audioPath = path.join(tempDir, `audio_${reelId}.wav`);
+                audioPath = await downloadService.extractAudio(videoPath, audioPath);
 
-                // Extract thumbnail frame
                 console.log(`[${reelId}] Extracting video thumbnail frame using ffmpeg...`);
                 const localThumbnailPath = path.join(thumbnailsDir, `${reelId}.jpg`);
-                const extractThumbCmd = `ffmpeg -i "${videoPath}" -ss 00:00:01 -vframes 1 -y "${localThumbnailPath}"`;
-                try {
-                    await execPromise(extractThumbCmd);
-                    
+                const thumbExtracted = await downloadService.extractThumbnailFrame(videoPath, localThumbnailPath);
+                if (thumbExtracted) {
                     let thumbnailUrl = await uploadThumbnailToSupabase(localThumbnailPath, reelId);
                     if (!thumbnailUrl) {
                         const hostUrl = `${req.protocol}://${req.get("host")}`;
@@ -478,31 +463,20 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
                     await supabase.from("reels").update({
                         thumbnail_url: thumbnailUrl
                     }).eq("id", reelId);
-                } catch (ffmpegThumbErr) {
-                    console.warn(`[${reelId}] Video thumbnail extraction failed:`, ffmpegThumbErr.message);
                 }
             }
         }
 
         if (contentMode === "single_image") {
-            // Download single image
             console.log(`[${reelId}] Downloading single image...`);
-            const dlCookiesFlag = fs.existsSync(cookiesPath) ? `-C "${cookiesPath}"` : "";
-            const downloadImgCmd = `gallery-dl ${dlCookiesFlag} -d "${tempDir}" -o directory="" -f "img_${reelId}.{extension}" "${cleanUrl}"`;
-            await execPromise(downloadImgCmd);
-
-            // Find downloaded file
-            const tempFiles = fs.readdirSync(tempDir);
-            const imgFile = tempFiles.find(f => f.startsWith(`img_${reelId}.`));
-            if (imgFile) {
-                imagePaths = [path.join(tempDir, imgFile)];
+            imagePaths = await downloadService.downloadImages(cleanUrl, tempDir, reelId, cookiesPath, instaMeta, false);
+            if (imagePaths.length > 0) {
+                const imgFile = imagePaths[0];
                 console.log(`[${reelId}] Single image downloaded: ${imgFile}`);
-
-                // Copy to local thumbnails folder
                 const imgExt = path.extname(imgFile);
                 const localThumbnailPath = path.join(thumbnailsDir, `${reelId}${imgExt}`);
-                fs.copyFileSync(path.join(tempDir, imgFile), localThumbnailPath);
-                
+                fs.copyFileSync(imgFile, localThumbnailPath);
+
                 let thumbnailUrl = await uploadThumbnailToSupabase(localThumbnailPath, reelId);
                 if (!thumbnailUrl) {
                     const hostUrl = `${req.protocol}://${req.get("host")}`;
@@ -515,39 +489,14 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
                 await supabase.from("reels").update({
                     thumbnail_url: thumbnailUrl
                 }).eq("id", reelId);
-            } else {
-                throw new Error("Image download failed — file not found in temp directory");
             }
         }
 
         if (contentMode === "image_carousel") {
-            // Download all carousel images
             console.log(`[${reelId}] Downloading image carousel...`);
-            const dlCookiesFlag = fs.existsSync(cookiesPath) ? `-C "${cookiesPath}"` : "";
-            const downloadImgCmd = `gallery-dl ${dlCookiesFlag} -d "${tempDir}" -o directory="" -f "img_${reelId}_{num}.{extension}" "${cleanUrl}"`;
-            await execPromise(downloadImgCmd);
-
-            // Find all downloaded files
-            const tempFiles = fs.readdirSync(tempDir);
-            imagePaths = tempFiles
-                .filter(f => f.startsWith(`img_${reelId}_`))
-                .sort((a, b) => {
-                    const aMatch = a.match(/_(\d+)\.[^.]+$/);
-                    const bMatch = b.match(/_(\d+)\.[^.]+$/);
-                    if (aMatch && bMatch) {
-                        return parseInt(aMatch[1], 10) - parseInt(bMatch[1], 10);
-                    }
-                    return a.localeCompare(b);
-                })
-                .map(f => path.join(tempDir, f));
-
+            imagePaths = await downloadService.downloadImages(cleanUrl, tempDir, reelId, cookiesPath, instaMeta, true);
             console.log(`[${reelId}] Downloaded ${imagePaths.length} carousel images`);
 
-            if (imagePaths.length === 0) {
-                throw new Error("Carousel download failed — no images found in temp directory");
-            }
-
-            // Copy first image from carousel as thumbnail
             if (imagePaths.length > 0) {
                 const firstImgPath = imagePaths[0];
                 const imgExt = path.extname(firstImgPath);
@@ -744,15 +693,14 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
 
 
     } catch (error) {
-        console.error("Reel Processing Error:", error);
+        console.error(`[${reelId || "Unknown"}] Reel Processing Error:`, error);
         
-        // reelId available hoy to failed update karo
         if (reelId) {
             try {
                 await supabase.from("reels")
                     .update({ 
                         analysis_status: "failed",
-                        error_message: error.message ? error.message.substring(0, 500) : "Unknown error",
+                        error_message: error.message ? error.message.substring(0, 500) : "Processing failure",
                         analyzed_at: new Date().toISOString()
                     })
                     .eq("id", reelId);
@@ -764,9 +712,13 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
             cleanupTempFiles(tempDir, reelId);
         }
         
-        return res.status(500).json({ 
-            error: "Processing failed", 
-            details: error.message 
+        const statusCode = (error instanceof PipelineError && error.statusCode) ? error.statusCode : 500;
+        const errorStage = (error instanceof PipelineError && error.stage) ? error.stage : "UNHANDLED_ERROR";
+
+        return res.status(statusCode).json({ 
+            error: error.message || "Processing failed", 
+            stage: errorStage,
+            details: error.details || error.message 
         });
     }
 });
@@ -1283,23 +1235,25 @@ app.patch("/api/reels/:id/metadata", authMiddleware, async (req, res) => {
 
 // KEEP EXISTING FOR BACKWARD COMPATIBILITY (if needed by frontend until updated)
 app.post("/transcribe-reel", authMiddleware, async (req, res) => {
-    // ... existing implementation ...
     const url = req.body.url;
     if (!url) return res.status(400).json({ error: "URL required" });
-    const audioPath = path.join(__dirname, "temp/audio_legacy.wav");
+    const legacyAudioPath = path.join(tempDir, "audio_legacy.wav");
     try {
         const cleanUrl = url.split("?")[0];
         console.log(`[Legacy Endpoint] Downloading audio for ${cleanUrl}...`);
-        const downloadCmd = `yt-dlp.exe -x --audio-format wav -o "${audioPath}" "${cleanUrl}"`;
-        await execPromise(downloadCmd);
+        await downloadService.downloadAudioLegacy(cleanUrl, legacyAudioPath, cookiesPath);
         console.log(`[Legacy Endpoint] Audio downloaded. Calling Python AI Server...`);
-        const ai = await axios.post(`${pythonServiceUrl}/transcribe`, { audio_path: audioPath });
+        const ai = await axios.post(`${pythonServiceUrl}/transcribe`, { audio_path: legacyAudioPath });
         console.log(`[Legacy Endpoint] Transcription successful!`);
         res.json(ai.data);
-        if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+        if (fs.existsSync(legacyAudioPath)) fs.unlinkSync(legacyAudioPath);
     } catch (error) {
         console.error(`[Legacy Endpoint] Processing failed:`, error.message);
-        res.status(500).json({ error: "Processing failed" });
+        if (fs.existsSync(legacyAudioPath)) {
+            try { fs.unlinkSync(legacyAudioPath); } catch (_) {}
+        }
+        const statusCode = (error instanceof PipelineError && error.statusCode) ? error.statusCode : 500;
+        res.status(statusCode).json({ error: error.message || "Processing failed", details: error.details || error.message });
     }
 });
 
