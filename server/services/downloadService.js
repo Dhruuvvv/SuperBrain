@@ -212,30 +212,45 @@ async function downloadImagesDirectly(instaMeta, tempDir, reelId, isCarousel) {
 
     const imageUrls = [];
 
+    // Helper to safely extract candidate URL from an entry/metadata object
+    const extractUrlFromObj = (obj) => {
+        if (!obj || typeof obj !== "object") return null;
+        if (obj.url && typeof obj.url === "string" && (obj.url.startsWith("http") || obj.url.startsWith("//"))) return obj.url;
+        if (obj.display_url && typeof obj.display_url === "string") return obj.display_url;
+        if (obj.thumbnail && typeof obj.thumbnail === "string") return obj.thumbnail;
+        if (Array.isArray(obj.thumbnails) && obj.thumbnails.length > 0) {
+            const lastThumb = obj.thumbnails[obj.thumbnails.length - 1];
+            if (lastThumb && lastThumb.url) return lastThumb.url;
+        }
+        if (Array.isArray(obj.formats) && obj.formats.length > 0) {
+            const lastFmt = obj.formats[obj.formats.length - 1];
+            if (lastFmt && lastFmt.url) return lastFmt.url;
+        }
+        return null;
+    };
+
     if (isCarousel && instaMeta.entries && Array.isArray(instaMeta.entries)) {
         console.log(`[downloadService] Carousel detected: ${instaMeta.entries.length} entries found`);
         instaMeta.entries.forEach((entry, idx) => {
             console.log(`[downloadService] Entry ${idx} keys:`, Object.keys(entry || {}).slice(0, 8).join(', '));
-            const url = entry.url || entry.display_url || entry.thumbnail ||
-                (entry.thumbnails && entry.thumbnails.length > 0 ? entry.thumbnails[entry.thumbnails.length - 1]?.url : null);
+            const url = extractUrlFromObj(entry);
             if (url) {
                 imageUrls.push(url);
                 console.log(`[downloadService] Entry ${idx}: URL extracted: ${url.substring(0, 60)}...`);
             } else {
-                console.warn(`[downloadService] Entry ${idx}: No URL found in keys [url, display_url, thumbnail, thumbnails]`);
+                console.warn(`[downloadService] Entry ${idx}: No URL found in entry object`);
             }
         });
     }
 
     if (imageUrls.length === 0) {
         console.log(`[downloadService] No carousel URLs found. Attempting single image extraction...`);
-        const singleUrl = instaMeta.url || instaMeta.display_url || instaMeta.thumbnail ||
-            (instaMeta.thumbnails && instaMeta.thumbnails.length > 0 ? instaMeta.thumbnails[instaMeta.thumbnails.length - 1]?.url : null);
+        const singleUrl = extractUrlFromObj(instaMeta);
         if (singleUrl) {
             imageUrls.push(singleUrl);
             console.log(`[downloadService] Single image URL extracted: ${singleUrl.substring(0, 60)}...`);
         } else {
-            console.warn(`[downloadService] Single image fallback: No URL found in keys [url, display_url, thumbnail, thumbnails]`);
+            console.warn(`[downloadService] Single image fallback: No URL found in instaMeta object`);
         }
     }
 

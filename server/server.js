@@ -406,48 +406,68 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
 
         console.log(`[${reelId}] Detecting content type...`);
 
-        // Use metadata to detect content type
+        // Use metadata & URL structure to detect content type
         const mediaExt = instaMeta.ext || "";
         const entries = instaMeta.entries || null; // present for playlists/carousels
+        const isReelUrl = cleanUrl.includes("/reel/") || cleanUrl.includes("/tv/");
 
         let contentMode = "video"; // "video" | "single_image" | "image_carousel"
+        let detectionReason = "";
         imagePaths = [];
 
-        // Detect content type from metadata
-        if (mediaExt === "mp4" || instaMeta.vcodec) {
+        // Detect content type from URL and metadata
+        if (isReelUrl) {
             contentMode = "video";
-            console.log(`[${reelId}] Detected: Video content`);
+            detectionReason = "URL path contains /reel/ or /tv/ (Instagram Video)";
+        } else if (mediaExt === "mp4" || instaMeta.vcodec) {
+            contentMode = "video";
+            detectionReason = `Metadata ext=${mediaExt}, vcodec=${instaMeta.vcodec}`;
         } else if (entries && entries.length > 1) {
             contentMode = "image_carousel";
-            console.log(`[${reelId}] Detected: Image carousel (${entries.length} slides)`);
+            detectionReason = `Metadata entries count=${entries.length}`;
         } else if (["jpg", "jpeg", "png", "webp"].includes(mediaExt)) {
             contentMode = "single_image";
-            console.log(`[${reelId}] Detected: Single photo`);
+            detectionReason = `Metadata ext=${mediaExt}`;
         } else {
             contentMode = "video";
-            console.log(`[${reelId}] Type unclear — defaulting to video attempt`);
+            detectionReason = "Type unclear from metadata — defaulting to video attempt";
         }
+
+        console.log(`[${reelId}] Content Type Detected: ${contentMode} (Reason: ${detectionReason})`);
 
         // --- DOWNLOAD based on detected type ---
 
         if (contentMode === "video") {
-            console.log(`[${reelId}] Downloading video...`);
+            console.log(`[${reelId}] Pipeline Stage: Video Download starting...`);
             const videoOutputTemplate = path.join(tempDir, `video_${reelId}.%(ext)s`);
             
             try {
                 videoPath = await downloadService.downloadVideo(cleanUrl, videoOutputTemplate, tempDir, reelId, cookiesPath);
-                console.log(`[${reelId}] Video downloaded successfully: ${videoPath}`);
+                console.log(`[${reelId}] Pipeline Stage: Video Download SUCCESS -> ${videoPath}`);
             } catch (dlErr) {
-                console.warn(`[${reelId}] Video download failed, trying as image...`, dlErr.message);
-                contentMode = "single_image";
+                console.error(`[${reelId}] Pipeline Stage: Video Download FAILED ->`, dlErr.message);
+                
+                // Only fall back to single_image IF the post is NOT a Reel/TV URL AND metadata strictly matches a photo extension
+                if (!isReelUrl && ["jpg", "jpeg", "png", "webp"].includes(mediaExt)) {
+                    console.log(`[${reelId}] Non-Reel video attempt failed. Switching to single image fallback...`);
+                    contentMode = "single_image";
+                } else {
+                    // For Reels or non-image content, propagate the ACTUAL video download failure
+                    throw new PipelineError(
+                        `Video download failed: ${dlErr.message || "Unable to download Instagram video."}`,
+                        "VIDEO_DOWNLOAD",
+                        400,
+                        dlErr.details || dlErr.message
+                    );
+                }
             }
 
             if (contentMode === "video" && fs.existsSync(videoPath)) {
-                console.log(`[${reelId}] Extracting audio using ffmpeg...`);
+                console.log(`[${reelId}] Pipeline Stage: Audio Extraction starting...`);
                 audioPath = path.join(tempDir, `audio_${reelId}.wav`);
                 audioPath = await downloadService.extractAudio(videoPath, audioPath);
 
-                console.log(`[${reelId}] Extracting video thumbnail frame using ffmpeg...`);
+                console.log(`[${reelId}] Pipeline Stage: Thumbnail Frame Extraction starting...`);
                 const localThumbnailPath = path.join(thumbnailsDir, `${reelId}.jpg`);
                 const thumbExtracted = await downloadService.extractThumbnailFrame(videoPath, localThumbnailPath);
                 if (thumbExtracted) {
