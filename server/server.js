@@ -307,6 +307,9 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
     const { url } = req.body;
     const userId = req.user.id;
 
+    // Dynamically derive backend public host URL (prefers Render/custom env vars, falls back to req headers)
+    const hostUrl = (process.env.RENDER_EXTERNAL_URL || process.env.BACKEND_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
+
     // Validate Instagram URL (Supports Reels, Posts, IGTV, and Stories)
     const validPatterns = ["instagram.com/reel/", "instagram.com/p/", "instagram.com/tv/", "instagram.com/stories/"];
     const isValid = url && validPatterns.some(pattern => url.includes(pattern));
@@ -485,7 +488,6 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
                 if (thumbExtracted) {
                     let thumbnailUrl = await uploadThumbnailToSupabase(localThumbnailPath, reelId);
                     if (!thumbnailUrl) {
-                        const hostUrl = `${req.protocol}://${req.get("host")}`;
                         thumbnailUrl = `${hostUrl}/thumbnails/${reelId}.jpg`;
                         console.log(`[${reelId}] Supabase upload failed. Falling back to local thumbnail: ${thumbnailUrl}`);
                     } else {
@@ -511,7 +513,6 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
 
                 let thumbnailUrl = await uploadThumbnailToSupabase(localThumbnailPath, reelId);
                 if (!thumbnailUrl) {
-                    const hostUrl = `${req.protocol}://${req.get("host")}`;
                     thumbnailUrl = `${hostUrl}/thumbnails/${reelId}${imgExt}`;
                     console.log(`[${reelId}] Supabase upload failed. Falling back to local thumbnail: ${thumbnailUrl}`);
                 } else {
@@ -537,7 +538,6 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
 
                 let thumbnailUrl = await uploadThumbnailToSupabase(localThumbnailPath, reelId);
                 if (!thumbnailUrl) {
-                    const hostUrl = `${req.protocol}://${req.get("host")}`;
                     thumbnailUrl = `${hostUrl}/thumbnails/${reelId}${imgExt}`;
                     console.log(`[${reelId}] Supabase upload failed. Falling back to local thumbnail: ${thumbnailUrl}`);
                 } else {
