@@ -36,32 +36,40 @@ if (!fs.existsSync(thumbnailsDir)) {
 app.use("/thumbnails", express.static(thumbnailsDir));
 
 // Dynamically generate cookies.txt from env var in deployment to protect credentials
-const cookiesPath = path.resolve(__dirname, "../cookies.txt");
-if (!fs.existsSync(cookiesPath) && process.env.INSTAGRAM_COOKIES) {
-    console.log("[Startup] cookies.txt not found. Generating from environment variable...");
+const rootCookiesPath = path.resolve(__dirname, "../cookies.txt");
+const serverCookiesPath = path.resolve(__dirname, "cookies.txt");
+const cookiesPath = rootCookiesPath;
+
+if (process.env.INSTAGRAM_COOKIES) {
+    console.log("[Startup] INSTAGRAM_COOKIES environment variable detected. Generating cookies.txt...");
     try {
         let cookiesContent = process.env.INSTAGRAM_COOKIES;
         if (cookiesContent.startsWith("base64:")) {
             cookiesContent = Buffer.from(cookiesContent.replace("base64:", ""), "base64").toString("utf8");
         }
-        fs.writeFileSync(cookiesPath, cookiesContent, "utf8");
-        console.log("[Startup] cookies.txt generated successfully.");
+        fs.writeFileSync(rootCookiesPath, cookiesContent, "utf8");
+        fs.writeFileSync(serverCookiesPath, cookiesContent, "utf8");
+        console.log(`[Startup] cookies.txt generated successfully at ${rootCookiesPath} and ${serverCookiesPath}`);
     } catch (err) {
         console.error("[Startup] Failed to write cookies.txt from environment variable:", err.message);
     }
 }
 
 // Validate cookies.txt on startup
-const cookiesExists = fs.existsSync(cookiesPath);
-if (!cookiesExists) {
+const hasRootCookies = fs.existsSync(rootCookiesPath);
+const hasServerCookies = fs.existsSync(serverCookiesPath);
+if (!hasRootCookies && !hasServerCookies) {
     console.warn(
-        `⚠️  WARNING: Cookies file not found at ${cookiesPath}\n` +
-        `   Private Instagram accounts may not be downloadable.\n` +
-        `   Place cookies.txt at project root to enable private account access.`
+        `⚠️  WARNING: No cookies.txt found at ${rootCookiesPath} or ${serverCookiesPath}.\n` +
+        `   Unauthenticated requests from cloud IPs (Render/AWS) may trigger HTTP 429 rate limits.\n` +
+        `   Set INSTAGRAM_COOKIES environment variable in Render dashboard to bypass 429 rate limits.`
     );
 } else {
-    console.log(`✓ Cookies file found at ${cookiesPath}`);
+    console.log(`✓ Cookies file validated at ${hasRootCookies ? rootCookiesPath : serverCookiesPath}`);
 }
+
+// Log Startup Verification (yt-dlp binary path, version, proxy configuration)
+downloadService.logStartupDiagnostics();
 
 // Init Supabase Admin Client using Service Key (bypass RLS)
 const supabaseUrl = process.env.SUPABASE_URL;

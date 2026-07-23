@@ -67,9 +67,70 @@ async function getYtDlpRunner() {
     return execYtDlp;
 }
 
+// Helper to sleep for ms
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Helper to get randomized jitter delay (e.g. 300ms - 1200ms)
+const getRandomJitter = (min = 300, max = 1200) => Math.floor(Math.random() * (max - min + 1)) + min;
+
+// Enhanced cookies path validator checking multiple candidate locations
 function validateCookiesPath(cookiesPath) {
-    const exists = cookiesPath && fs.existsSync(cookiesPath);
-    return cookiesPath && exists ? cookiesPath : null;
+    const candidates = [
+        cookiesPath,
+        path.resolve(__dirname, "../cookies.txt"),
+        path.resolve(__dirname, "cookies.txt"),
+        path.resolve(process.cwd(), "cookies.txt"),
+        path.resolve(process.cwd(), "server/cookies.txt")
+    ].filter(Boolean);
+
+    for (const p of candidates) {
+        if (fs.existsSync(p)) {
+            return p;
+        }
+    }
+
+    return null;
+}
+
+// Construct options object with headers, cookies, and optional proxy for yt-dlp-exec
+function getInstagramExtraFlags(cookiesPath) {
+    const flags = {};
+    const validCookies = validateCookiesPath(cookiesPath);
+    if (validCookies) {
+        flags.cookies = validCookies;
+        console.log(`[downloadService] Using cookies from: ${validCookies}`);
+    } else {
+        console.warn(`[downloadService] Warning: No valid cookies.txt found. Requests may encounter HTTP 429 on cloud IPs.`);
+    }
+
+    // Realistic Browser Headers & Instagram Web App ID
+    flags.addHeader = [
+        "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+        "Referer: https://www.instagram.com/",
+        "Accept-Language: en-US,en;q=0.9",
+        "X-IG-App-ID: 936619743392459"
+    ];
+
+    // Optional proxy support via environment variables
+    const proxyUrl = process.env.INSTAGRAM_PROXY || process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+    if (proxyUrl) {
+        flags.proxy = proxyUrl;
+        console.log(`[downloadService] Using proxy for Instagram request: ${proxyUrl.replace(/:[^:@]+@/, ":***@")}`);
+    }
+
+    return flags;
+}
+
+// Construct CLI string flags for fallback exec Promise
+function getInstagramCliFlagsStr(cookiesPath) {
+    const validCookies = validateCookiesPath(cookiesPath);
+    const cookiesFlag = validCookies ? `--cookies "${validCookies}"` : "";
+    const headersFlag = '--add-header "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36" --add-header "Referer: https://www.instagram.com/" --add-header "Accept-Language: en-US,en;q=0.9" --add-header "X-IG-App-ID: 936619743392459"';
+    
+    const proxyUrl = process.env.INSTAGRAM_PROXY || process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+    const proxyFlag = proxyUrl ? `--proxy "${proxyUrl}"` : "";
+
+    return `${cookiesFlag} ${headersFlag} ${proxyFlag}`.trim();
 }
 
 // Structured Pipeline Error Class
@@ -94,93 +155,229 @@ async function isCommandAvailable(command) {
     }
 }
 
-// Helper to construct cookies flag options for yt-dlp-exec
-function getCookiesFlags(cookiesPath) {
-    const validPath = validateCookiesPath(cookiesPath);
-    if (validPath) {
-        return { cookies: validPath };
+/**
+ * Verification Task 1 & 5: Startup Diagnostics Logging
+ */
+async function logStartupDiagnostics() {
+    try {
+        const binPath = await getYtDlpBinary();
+        let version = "Unknown";
+        try {
+            const { stdout } = await execPromise(`"${binPath}" --version`);
+            version = stdout.trim();
+        } catch (verErr) {
+            version = `Error fetching version: ${verErr.message}`;
+        }
+
+        const proxyUrl = process.env.INSTAGRAM_PROXY || process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+        const proxyConfigured = !!proxyUrl;
+        const maskedProxy = proxyConfigured ? proxyUrl.replace(/:[^:@]+@/, ":***@") : "NO";
+
+        console.log(`\n==================================================`);
+        console.log(`[Startup Verification]`);
+        console.log(`Using yt-dlp binary:`);
+        console.log(`  ${binPath}`);
+        console.log(`\nyt-dlp Version:`);
+        console.log(`  ${version}`);
+        console.log(`\nProxy configured:`);
+        console.log(`  ${proxyConfigured ? "YES" : "NO"}`);
+        if (proxyConfigured) {
+            console.log(`Proxy:`);
+            console.log(`  ${maskedProxy}`);
+        }
+        console.log(`==================================================\n`);
+
+        return { binPath, version, proxyConfigured, maskedProxy };
+    } catch (err) {
+        console.error("[Startup Verification] Error logging startup diagnostics:", err.message);
     }
-    return {};
 }
 
 /**
- * Fetch Instagram metadata via yt-dlp-exec with fallback to resolved CLI
+ * Verification Task 2 & 3: Pre-Request Verification Logging
+ */
+function logPreRequestDiagnostics(stage, cookiesPath) {
+    const validCookiesPath = validateCookiesPath(cookiesPath);
+    const cookiesFound = !!validCookiesPath;
+    let cookiesSizeStr = "N/A";
+    
+    if (cookiesFound) {
+        try {
+            const stats = fs.statSync(validCookiesPath);
+            const sizeInKb = (stats.size / 1024).toFixed(1);
+            cookiesSizeStr = `${sizeInKb} KB (${stats.size} bytes)`;
+        } catch (_) {
+            cookiesSizeStr = "Error reading file size";
+        }
+    }
+
+    const headers = [
+        "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+        "Referer: https://www.instagram.com/",
+        "Accept-Language: en-US,en;q=0.9",
+        "X-IG-App-ID: 936619743392459"
+    ];
+
+    console.log(`\n--------------------------------------------------`);
+    console.log(`[Request Verification: ${stage}]`);
+    console.log(`Cookies:`);
+    console.log(`  ${cookiesFound ? "✓ Found" : "❌ NOT FOUND"}`);
+    if (cookiesFound) {
+        console.log(`Path:`);
+        console.log(`  ${validCookiesPath}`);
+        console.log(`Size:`);
+        console.log(`  ${cookiesSizeStr}`);
+    }
+    console.log(`Passing --cookies argument:`);
+    console.log(`  ${cookiesFound ? "YES" : "NO"}`);
+    console.log(`\nHeaders applied to yt-dlp:`);
+    headers.forEach(h => console.log(`  - ${h}`));
+    console.log(`--------------------------------------------------\n`);
+
+    return { cookiesFound, validCookiesPath, cookiesSizeStr };
+}
+
+/**
+ * Fetch Instagram metadata via yt-dlp-exec with retry logic and fallback CLI
  */
 async function fetchMetadata(cleanUrl, cookiesPath) {
+    logPreRequestDiagnostics("fetchMetadata", cookiesPath);
     const runner = await getYtDlpRunner();
     const options = {
         dumpSingleJson: true,
         skipDownload: true,
         ignoreNoFormatsError: true,
-        ...getCookiesFlags(cookiesPath)
+        ...getInstagramExtraFlags(cookiesPath)
     };
 
-    try {
-        const metadata = await runner(cleanUrl, options);
-        if (typeof metadata === "string") {
-            return JSON.parse(metadata);
-        }
-        return metadata;
-    } catch (err) {
-        console.error("[downloadService] fetchMetadata yt-dlp-exec error:", err.message || err);
+    const maxRetries = 2;
+    let lastErr = null;
 
-        // Fallback: try direct CLI invocation with resolved binary
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        console.log(`[fetchMetadata] Attempt ${attempt + 1}`);
         try {
-            const validCookies = validateCookiesPath(cookiesPath);
-            const cookiesFlag = validCookies ? `--cookies "${validCookies}"` : "";
-            const binPath = await getYtDlpBinary();
-            const cmdBin = fs.existsSync(binPath) ? `"${binPath}"` : binPath;
-            const metaCmd = `${cmdBin} --dump-single-json --skip-download --ignore-no-formats-error ${cookiesFlag} ${escapeShellArg(cleanUrl)}`;
-            const { stdout } = await execPromise(metaCmd);
-            return JSON.parse(stdout);
-        } catch (cliErr) {
-            console.error("[downloadService] fetchMetadata CLI fallback error:", cliErr.stderr || cliErr.message || cliErr);
-            throw new PipelineError(
-                "Failed to extract Instagram post metadata. The post might be private, deleted, or require updated login cookies.",
-                "METADATA_FETCH",
-                400,
-                cliErr.stderr || cliErr.message || err.message
-            );
+            // Apply randomized jitter delay before request
+            const jitter = getRandomJitter(300, 1000);
+            await sleep(jitter);
+
+            const metadata = await runner(cleanUrl, options);
+            if (typeof metadata === "string") {
+                return JSON.parse(metadata);
+            }
+            return metadata;
+        } catch (err) {
+            lastErr = err;
+            const errStr = err.message || String(err);
+            const is429 = errStr.includes("429") || errStr.includes("Too Many Requests");
+            console.error(`[fetchMetadata] Attempt ${attempt + 1} error (is429=${is429}):`, errStr);
+
+            if (is429 && attempt < maxRetries) {
+                const backoffSec = (attempt + 1) * 2;
+                console.log(`\nAttempt ${attempt + 1}\n↓\n429\n↓\nWaiting ${backoffSec} seconds\n↓\nAttempt ${attempt + 2}`);
+                await sleep(backoffSec * 1000);
+                continue;
+            }
+
+            // CLI Fallback attempt
+            try {
+                const cliFlags = getInstagramCliFlagsStr(cookiesPath);
+                const binPath = await getYtDlpBinary();
+                const cmdBin = fs.existsSync(binPath) ? `"${binPath}"` : binPath;
+                const metaCmd = `${cmdBin} --dump-single-json --skip-download --ignore-no-formats-error ${cliFlags} ${escapeShellArg(cleanUrl)}`;
+                const { stdout } = await execPromise(metaCmd);
+                return JSON.parse(stdout);
+            } catch (cliErr) {
+                const cliErrStr = cliErr.stderr || cliErr.message || String(cliErr);
+                const cliIs429 = cliErrStr.includes("429") || cliErrStr.includes("Too Many Requests");
+                console.error("[downloadService] fetchMetadata CLI fallback error:", cliErrStr);
+
+                if (cliIs429 && attempt < maxRetries) {
+                    const backoffSec = (attempt + 1) * 2.5;
+                    console.log(`\nAttempt ${attempt + 1}\n↓\n429\n↓\nWaiting ${backoffSec} seconds\n↓\nAttempt ${attempt + 2}`);
+                    await sleep(backoffSec * 1000);
+                    continue;
+                }
+
+                throw new PipelineError(
+                    cliIs429 
+                        ? "Instagram rate limit reached (HTTP 429). Please ensure valid cookies.txt or proxy is configured."
+                        : "Failed to extract Instagram post metadata. The post might be private, deleted, or require updated login cookies.",
+                    "METADATA_FETCH",
+                    cliIs429 ? 429 : 400,
+                    cliErrStr || errStr
+                );
+            }
         }
     }
 }
 
 /**
- * Download Video MP4
+ * Download Video MP4 with retries, headers, and fallback CLI
  */
 async function downloadVideo(cleanUrl, videoOutputTemplate, tempDir, reelId, cookiesPath) {
+    logPreRequestDiagnostics("downloadVideo", cookiesPath);
     const runner = await getYtDlpRunner();
     const options = {
         format: "best[ext=mp4]/best/b",
         noPlaylist: true,
         mergeOutputFormat: "mp4",
         output: videoOutputTemplate,
-        ...getCookiesFlags(cookiesPath)
+        ...getInstagramExtraFlags(cookiesPath)
     };
 
-    try {
-        await runner(cleanUrl, options);
-    } catch (err) {
-        console.error("[downloadService] downloadVideo runner error:", err.message || err);
+    const maxRetries = 2;
+    let lastErr = null;
 
-        // Fallback to CLI execution if runner encounters issue
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        console.log(`[downloadVideo] Attempt ${attempt + 1}`);
         try {
-            const validCookies = validateCookiesPath(cookiesPath);
-            const cookiesFlag = validCookies ? `--cookies "${validCookies}"` : "";
-            const binPath = await getYtDlpBinary();
-            const cmdBin = fs.existsSync(binPath) ? `"${binPath}"` : binPath;
-            const downloadVideoCmd = `${cmdBin} -f "best[ext=mp4]/best/b" --no-playlist --merge-output-format mp4 -o "${videoOutputTemplate}" ${cookiesFlag} ${escapeShellArg(cleanUrl)}`;
-            await execPromise(downloadVideoCmd);
-        } catch (cliErr) {
-            console.error("[downloadService] downloadVideo CLI fallback error:", cliErr.stderr || cliErr.message || cliErr);
-            const rawErrStr = cliErr.stderr || cliErr.message || err.message || "Video download failed.";
-            const cleanErrMsg = rawErrStr.includes("ERROR:") ? rawErrStr.split("ERROR:")[1].trim().split("\n")[0] : rawErrStr;
-            throw new PipelineError(
-                cleanErrMsg,
-                "VIDEO_DOWNLOAD",
-                400,
-                rawErrStr
-            );
+            // Apply randomized jitter delay before request
+            const jitter = getRandomJitter(400, 1200);
+            await sleep(jitter);
+
+            await runner(cleanUrl, options);
+            break; // Download succeeded
+        } catch (err) {
+            lastErr = err;
+            const errStr = err.message || String(err);
+            const is429 = errStr.includes("429") || errStr.includes("Too Many Requests");
+            console.error(`[downloadVideo] Attempt ${attempt + 1} error (is429=${is429}):`, errStr);
+
+            if (is429 && attempt < maxRetries) {
+                const backoffSec = (attempt + 1) * 2.5;
+                console.log(`\nAttempt ${attempt + 1}\n↓\n429\n↓\nWaiting ${backoffSec} seconds\n↓\nAttempt ${attempt + 2}`);
+                await sleep(backoffSec * 1000);
+                continue;
+            }
+
+            // Fallback to CLI execution
+            try {
+                const cliFlags = getInstagramCliFlagsStr(cookiesPath);
+                const binPath = await getYtDlpBinary();
+                const cmdBin = fs.existsSync(binPath) ? `"${binPath}"` : binPath;
+                const downloadVideoCmd = `${cmdBin} -f "best[ext=mp4]/best/b" --no-playlist --merge-output-format mp4 -o "${videoOutputTemplate}" ${cliFlags} ${escapeShellArg(cleanUrl)}`;
+                await execPromise(downloadVideoCmd);
+                break; // CLI succeeded
+            } catch (cliErr) {
+                const cliErrStr = cliErr.stderr || cliErr.message || String(cliErr);
+                const cliIs429 = cliErrStr.includes("429") || cliErrStr.includes("Too Many Requests");
+                console.error("[downloadService] downloadVideo CLI fallback error:", cliErrStr);
+
+                if (cliIs429 && attempt < maxRetries) {
+                    const backoffSec = (attempt + 1) * 3.0;
+                    console.log(`\nAttempt ${attempt + 1}\n↓\n429\n↓\nWaiting ${backoffSec} seconds\n↓\nAttempt ${attempt + 2}`);
+                    await sleep(backoffSec * 1000);
+                    continue;
+                }
+
+                const cleanErrMsg = cliErrStr.includes("ERROR:") ? cliErrStr.split("ERROR:")[1].trim().split("\n")[0] : cliErrStr;
+                throw new PipelineError(
+                    cleanErrMsg,
+                    "VIDEO_DOWNLOAD",
+                    cliIs429 ? 429 : 400,
+                    cliErrStr
+                );
+            }
         }
     }
 
@@ -404,6 +601,8 @@ module.exports = {
     PipelineError,
     isCommandAvailable,
     getYtDlpBinary,
+    logStartupDiagnostics,
+    logPreRequestDiagnostics,
     fetchMetadata,
     downloadVideo,
     extractAudio,
