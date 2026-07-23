@@ -422,6 +422,74 @@ async function extractThumbnailFrame(videoPath, localThumbnailPath) {
 }
 
 /**
+ * Download official Instagram Reel cover/thumbnail image from metadata.
+ * Priority: Highest resolution entry in instaMeta.thumbnails -> instaMeta.thumbnail -> instaMeta.display_url -> instaMeta.url
+ */
+async function downloadOfficialThumbnail(instaMeta, localThumbnailPath) {
+    if (!instaMeta || typeof instaMeta !== "object") return false;
+
+    let candidateUrl = null;
+
+    // 1. Check thumbnails array for highest resolution entry
+    if (Array.isArray(instaMeta.thumbnails) && instaMeta.thumbnails.length > 0) {
+        const validThumbs = instaMeta.thumbnails.filter(t => t && t.url && typeof t.url === "string");
+        if (validThumbs.length > 0) {
+            validThumbs.sort((a, b) => {
+                const areaA = (a.width || 0) * (a.height || 0);
+                const areaB = (b.width || 0) * (b.height || 0);
+                if (areaA !== areaB) return areaB - areaA;
+                return (b.preference || 0) - (a.preference || 0);
+            });
+            candidateUrl = validThumbs[0].url;
+            console.log(`[downloadService] Found official thumbnail from thumbnails array (resolution: ${validThumbs[0].width || '?'}x${validThumbs[0].height || '?'})`);
+        }
+    }
+
+    // 2. Fallback to thumbnail property
+    if (!candidateUrl && instaMeta.thumbnail && typeof instaMeta.thumbnail === "string") {
+        candidateUrl = instaMeta.thumbnail;
+        console.log("[downloadService] Found official thumbnail from instaMeta.thumbnail");
+    }
+
+    // 3. Fallback to display_url property
+    if (!candidateUrl && instaMeta.display_url && typeof instaMeta.display_url === "string") {
+        candidateUrl = instaMeta.display_url;
+        console.log("[downloadService] Found official thumbnail from instaMeta.display_url");
+    }
+
+    // 4. Fallback to url property if it points to an image
+    if (!candidateUrl && instaMeta.url && typeof instaMeta.url === "string" && /\.(jpg|jpeg|png|webp)/i.test(instaMeta.url)) {
+        candidateUrl = instaMeta.url;
+        console.log("[downloadService] Found official thumbnail from instaMeta.url");
+    }
+
+    if (!candidateUrl) {
+        console.log("[downloadService] No official Instagram thumbnail URL found in metadata.");
+        return false;
+    }
+
+    try {
+        console.log(`[downloadService] Downloading official thumbnail from ${candidateUrl.substring(0, 80)}...`);
+        const response = await axios({
+            method: "get",
+            url: candidateUrl,
+            responseType: "arraybuffer",
+            timeout: 15000,
+            headers: {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+                "Referer": "https://www.instagram.com/"
+            }
+        });
+        fs.writeFileSync(localThumbnailPath, Buffer.from(response.data));
+        console.log(`[downloadService] Official Instagram thumbnail saved cleanly to ${localThumbnailPath}`);
+        return fs.existsSync(localThumbnailPath) && fs.statSync(localThumbnailPath).size > 0;
+    } catch (err) {
+        console.warn(`[downloadService] Failed to download official Instagram thumbnail: ${err.message}`);
+        return false;
+    }
+}
+
+/**
  * Direct HTTP image downloader fallback using axios
  */
 async function downloadImagesDirectly(instaMeta, tempDir, reelId, isCarousel) {
@@ -607,6 +675,7 @@ module.exports = {
     downloadVideo,
     extractAudio,
     extractThumbnailFrame,
+    downloadOfficialThumbnail,
     downloadImages,
     downloadAudioLegacy
 };

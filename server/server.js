@@ -482,9 +482,17 @@ app.post("/api/reels", authMiddleware, async (req, res) => {
                 audioPath = path.join(tempDir, `audio_${reelId}.wav`);
                 audioPath = await downloadService.extractAudio(videoPath, audioPath);
 
-                console.log(`[${reelId}] Pipeline Stage: Thumbnail Frame Extraction starting...`);
+                console.log(`[${reelId}] Pipeline Stage: Thumbnail Extraction starting...`);
                 const localThumbnailPath = path.join(thumbnailsDir, `${reelId}.jpg`);
-                const thumbExtracted = await downloadService.extractThumbnailFrame(videoPath, localThumbnailPath);
+
+                // 1. Priority: Official Instagram Reel thumbnail from metadata (highest resolution cover image)
+                let thumbExtracted = await downloadService.downloadOfficialThumbnail(instaMeta, localThumbnailPath);
+
+                // 2. Fallback: FFmpeg video frame extraction if official thumbnail is unavailable or fails
+                if (!thumbExtracted) {
+                    console.log(`[${reelId}] Official thumbnail download unavailable. Falling back to FFmpeg frame extraction...`);
+                    thumbExtracted = await downloadService.extractThumbnailFrame(videoPath, localThumbnailPath);
+                }
                 if (thumbExtracted) {
                     let thumbnailUrl = await uploadThumbnailToSupabase(localThumbnailPath, reelId);
                     if (!thumbnailUrl) {
